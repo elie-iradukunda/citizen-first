@@ -7,12 +7,27 @@ const AuthContext = createContext(null);
 const AUTH_TOKEN_KEY = 'cf_auth_token';
 const AUTH_USER_KEY = 'cf_auth_user';
 
+function readStoredUser() {
+  const raw = localStorage.getItem(AUTH_USER_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    localStorage.removeItem(AUTH_USER_KEY);
+    return null;
+  }
+}
+
+function shouldInvalidateSession(errorMessage) {
+  return /(401|403|unauthoriz|invalid|expired|revoked)/i.test(String(errorMessage ?? ''));
+}
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(AUTH_TOKEN_KEY));
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem(AUTH_USER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [user, setUser] = useState(() => readStoredUser());
   const [isChecking, setIsChecking] = useState(Boolean(token));
 
   useEffect(() => {
@@ -31,14 +46,23 @@ export function AuthProvider({ children }) {
         setUser(payload.user);
         localStorage.setItem(AUTH_USER_KEY, JSON.stringify(payload.user));
       })
-      .catch(() => {
+      .catch((error) => {
         if (!isActive) {
           return;
         }
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-        localStorage.removeItem(AUTH_USER_KEY);
+
+        const cachedUser = readStoredUser();
+        const invalidate = shouldInvalidateSession(error?.message);
+
+        if (invalidate || !cachedUser) {
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          localStorage.removeItem(AUTH_USER_KEY);
+          return;
+        }
+
+        setUser(cachedUser);
       })
       .finally(() => {
         if (isActive) {

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRoleDashboardPath } from '../lib/authRouting';
 
 const demoAccounts = [
   {
@@ -107,30 +108,11 @@ const demoAccessKeys = [
   },
 ];
 
-function getRoleRedirectPath(role) {
-  if (role === 'national_admin' || role === 'oversight_admin') {
-    return '/dashboard/admin';
-  }
-
-  if (
-    role === 'institution_officer' ||
-    role === 'province_leader' ||
-    role === 'district_leader' ||
-    role === 'sector_leader' ||
-    role === 'cell_leader' ||
-    role === 'village_leader'
-  ) {
-    return '/dashboard/officer';
-  }
-
-  return '/dashboard/citizen';
-}
-
 function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get('redirect');
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user, isAuthenticated, isChecking } = useAuth();
 
   const [loginMode, setLoginMode] = useState('password');
   const [email, setEmail] = useState('');
@@ -138,6 +120,14 @@ function LoginPage() {
   const [accessKey, setAccessKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isChecking || !isAuthenticated || !user) {
+      return;
+    }
+
+    navigate(redirectPath || getRoleDashboardPath(user.role), { replace: true });
+  }, [isAuthenticated, isChecking, navigate, redirectPath, user]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -156,7 +146,7 @@ function LoginPage() {
             };
 
       const user = await login(payload);
-      navigate(redirectPath || getRoleRedirectPath(user.role), { replace: true });
+      navigate(redirectPath || getRoleDashboardPath(user.role), { replace: true });
     } catch (submitError) {
       setError(submitError.message);
     } finally {
