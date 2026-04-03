@@ -1,0 +1,20 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "build": "node ./scripts/build-placeholder.js",
+    "lint": "node ./scripts/lint-placeholder.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mysql2": "^3.12.0",
+    "qrcode": "^1.5.4",
+    "sequelize": "^6.37.5",
+    "zod": "^3.24.2"
+  }
+}
