@@ -17,7 +17,7 @@ app.use(
     origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
   }),
 );
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '12mb' }));
 
 app.get('/', (_request, response) => {
   response.json({

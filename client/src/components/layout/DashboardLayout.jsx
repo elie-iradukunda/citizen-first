@@ -1,26 +1,14 @@
 import { ArrowRightOnRectangleIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import {
+  canAccessInviteSetup,
+  getRoleDashboardPath,
+  isAdminDashboardRole,
+  isCitizenDashboardRole,
+} from '../../lib/authRouting';
 
-const adminRoles = new Set(['national_admin', 'oversight_admin']);
-const managementRoles = new Set([
-  'institution_officer',
-  'province_leader',
-  'district_leader',
-  'sector_leader',
-  'cell_leader',
-  'village_leader',
-  'national_admin',
-  'oversight_admin',
-]);
-const inviteRoles = new Set([
-  'national_admin',
-  'province_leader',
-  'district_leader',
-  'sector_leader',
-  'cell_leader',
-]);
 const levelWorkspaceLabels = {
   national_admin: 'National Governance Command',
   oversight_admin: 'Oversight and Compliance Center',
@@ -33,59 +21,86 @@ const levelWorkspaceLabels = {
   citizen: 'Citizen Self-Service Dashboard',
 };
 
-function dashboardLinkClass({ isActive }) {
+function buildDashboardLinkClass(isActive) {
   return [
     'block rounded-xl px-4 py-3 text-sm font-semibold transition',
     isActive ? 'bg-gold text-ink' : 'text-white/90 hover:bg-white/10',
   ].join(' ');
 }
 
+function isDashboardLinkActive(item, location) {
+  const [pathname, hashFragment] = item.to.split('#');
+
+  if (location.pathname !== pathname) {
+    return false;
+  }
+
+  if (hashFragment) {
+    return location.hash === `#${hashFragment}`;
+  }
+
+  return !location.hash;
+}
+
 function DashboardLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const role = user?.role ?? 'citizen';
-  const isCitizenRole = role === 'citizen';
+  const dashboardHomePath = getRoleDashboardPath(role);
 
-  const dashboardLinks = isCitizenRole
+  const dashboardLinks = isCitizenDashboardRole(role)
     ? [
-        { to: '/dashboards', label: 'Dashboard Home' },
-        { to: '/dashboard/citizen', label: 'My Dashboard' },
+        { to: dashboardHomePath, label: 'Dashboard Home' },
         { to: '/dashboard/citizen/submit', label: 'Submit Issue' },
         { to: '/dashboard/citizen/services', label: 'Service Explorer' },
         { to: '/dashboard/citizen/leaders', label: 'Leaders and Roles' },
       ]
-    : [
-        { to: '/dashboards', label: 'Dashboard Home' },
-        ...(role === 'citizen' || adminRoles.has(role)
-          ? [{ to: '/dashboard/citizen', label: 'Citizen View' }]
-          : []),
-        ...(managementRoles.has(role) ? [{ to: '/dashboard/officer', label: 'Level Management' }] : []),
-        ...(adminRoles.has(role) ? [{ to: '/dashboard/admin', label: 'Admin Oversight' }] : []),
-        ...(inviteRoles.has(role) ? [{ to: '/register/invite', label: 'Invite Setup' }] : []),
-      ];
+    : isAdminDashboardRole(role)
+      ? [
+          { to: '/dashboard/admin', label: 'Admin Overview' },
+          { to: '/dashboard/admin#system-alerts', label: 'System Alerts' },
+          { to: '/dashboard/admin#province-reports', label: 'Province Reports' },
+          { to: '/dashboard/admin#issue-types', label: 'Issue Types' },
+          { to: '/dashboard/admin#national-feed', label: 'National Reports' },
+          { to: '/dashboard/admin#registration-hierarchy', label: 'Hierarchy Coverage' },
+          ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'Invite Setup' }] : []),
+        ]
+      : [
+          { to: dashboardHomePath, label: 'Overview' },
+          { to: `${dashboardHomePath}#cases`, label: 'Case Queue' },
+          { to: `${dashboardHomePath}#territory`, label: 'Territory Explorer' },
+          { to: `${dashboardHomePath}#team`, label: 'Team Watch' },
+          ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'Invite Setup' }] : []),
+        ];
 
   const onLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  const renderDashboardLink = (item) => (
+    <Link
+      key={item.to}
+      to={item.to}
+      onClick={() => setMobileMenuOpen(false)}
+      className={buildDashboardLinkClass(isDashboardLinkActive(item, location))}
+    >
+      {item.label}
+    </Link>
+  );
+
   return (
     <div className="min-h-screen bg-mist">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 bg-ink px-5 py-6 text-white lg:block">
+      <div className="flex min-h-screen lg:items-start">
+        <aside className="hidden w-72 shrink-0 self-start bg-ink px-5 py-6 text-white lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
           <p className="font-display text-2xl font-black uppercase tracking-[0.06em]">Citizen First</p>
           <p className="mt-2 text-xs uppercase tracking-[0.14em] text-gold">
             {levelWorkspaceLabels[role] ?? 'Dashboard Console'}
           </p>
 
-          <nav className="mt-8 space-y-2">
-            {dashboardLinks.map((item) => (
-              <NavLink key={item.to} to={item.to} className={dashboardLinkClass}>
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+          <nav className="mt-8 space-y-2">{dashboardLinks.map((item) => renderDashboardLink(item))}</nav>
 
           <button
             type="button"
@@ -97,8 +112,8 @@ function DashboardLayout() {
           </button>
         </aside>
 
-        <div className="flex-1">
-          <header className="border-b border-ink/10 bg-white">
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-30 border-b border-ink/10 bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Authenticated Dashboard</p>
@@ -138,23 +153,12 @@ function DashboardLayout() {
           </header>
 
           {mobileMenuOpen ? (
-            <div className="border-b border-ink/10 bg-ink px-4 py-4 lg:hidden">
-              <nav className="space-y-2">
-                {dashboardLinks.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={dashboardLinkClass}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </nav>
+            <div className="sticky top-[73px] z-20 border-b border-ink/10 bg-ink px-4 py-4 lg:hidden">
+              <nav className="space-y-2">{dashboardLinks.map((item) => renderDashboardLink(item))}</nav>
             </div>
           ) : null}
 
-          <main>
+          <main className="min-w-0">
             <Outlet />
           </main>
         </div>

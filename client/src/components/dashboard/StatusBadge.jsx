@@ -3,9 +3,16 @@ const statusClassMap = {
   escalated: 'bg-clay/15 text-clay',
   in_review: 'bg-tide/15 text-tide',
   submitted: 'bg-gold/30 text-ink',
+  responded: 'bg-tide/15 text-tide',
+  pending: 'bg-gold/30 text-ink',
+  used: 'bg-pine/15 text-pine',
   high: 'bg-clay/15 text-clay',
   medium: 'bg-gold/30 text-ink',
   normal: 'bg-pine/15 text-pine',
+  corruption_risk: 'bg-clay/15 text-clay',
+  authority_abuse: 'bg-clay/15 text-clay',
+  service_follow_up: 'bg-tide/15 text-tide',
+  service_delivery: 'bg-pine/15 text-pine',
 };
 
 function toTitleCase(value) {

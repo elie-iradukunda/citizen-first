@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { systemUsers } from '../data/registrationData.js';
+import { registeredCitizens, systemUsers } from '../data/registrationData.js';
 import { createSession, removeSession } from '../data/sessionStore.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 
@@ -42,10 +42,18 @@ function verifyPassword(password, salt, expectedHash) {
 }
 
 function buildSafeUserProfile(user) {
+  const citizenRecord =
+    user.role === 'citizen'
+      ? registeredCitizens.find((entry) => entry.nationalId === user.nationalId) ?? null
+      : null;
+
   return {
     userId: user.userId,
+    citizenId: citizenRecord?.citizenId ?? null,
     fullName: user.fullName,
     email: user.email ?? null,
+    phone: user.phone ?? citizenRecord?.phone ?? null,
+    nationalId: user.nationalId ?? null,
     role: user.role,
     level: user.level,
     institutionId: user.institutionId ?? null,
