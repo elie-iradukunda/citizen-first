@@ -14,6 +14,7 @@ import InstitutionInvitePage from './pages/InstitutionInvitePage';
 import InstitutionRegistrationPage from './pages/InstitutionRegistrationPage';
 import LoginPage from './pages/LoginPage';
 import OfficerDashboardPage from './pages/OfficerDashboardPage';
+import PublicInstitutionAccessPage from './pages/PublicInstitutionAccessPage';
 import PublicServicesPage from './pages/PublicServicesPage';
 import ReportPage from './pages/ReportPage';
 import TrackPage from './pages/TrackPage';
@@ -37,6 +38,7 @@ function App() {
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/register/citizen" element={<CitizenRegistrationPage />} />
           <Route path="/register/institution" element={<InstitutionRegistrationPage />} />
+          <Route path="/institutions/:slug" element={<PublicInstitutionAccessPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/track" element={<TrackPage />} />
       </Route>

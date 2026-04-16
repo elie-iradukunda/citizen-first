@@ -647,6 +647,10 @@ function getClientBaseUrl() {
   return process.env.CLIENT_URL ?? 'http://localhost:5173';
 }
 
+function buildInstitutionAccessUrl(slug) {
+  return `${getClientBaseUrl()}/institutions/${slug}`;
+}
+
 function getAccessKeyForNewLeader(level) {
   return `CF-${LEVEL_PREFIX[level]}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 }
@@ -1312,21 +1316,7 @@ router.post('/institutions/complete', async (request, response, next) => {
       status: 'active',
     };
 
-    const qrContent = {
-      institutionId,
-      institutionName: payload.institutionName,
-      level,
-      parentInstitutionId,
-      location,
-      leader: {
-        fullName: payload.leader.fullName,
-        positionTitle: payload.leader.positionTitle,
-      },
-      expectedChildUnits,
-      services: services.map((item) => item.name),
-    };
-
-    const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrContent), {
+    const qrCodeDataUrl = await QRCode.toDataURL(buildInstitutionAccessUrl(institutionSlug), {
       margin: 1,
       color: {
         dark: '#1d3567',

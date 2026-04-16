@@ -235,6 +235,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
 
   const complaintTargets = useMemo(() => context?.complaintTargetLeaders ?? [], [context?.complaintTargetLeaders]);
   const accusedLeaderOptions = useMemo(() => context?.accusedLeaderOptions ?? [], [context?.accusedLeaderOptions]);
+  const hasInstitutionSpecificAccusedOptions = Boolean(selectedInstitution?.accountabilityContacts?.length);
   const selectedAccusedLeaders = accusedLeaderOptions.filter((entry) =>
     complaintForm.accusedLeaderEmployeeIds.includes(entry.leader.employeeId),
   );
@@ -700,8 +701,16 @@ function CitizenDashboardPage({ mode = 'overview' }) {
           ) : (
             <div className="space-y-3 rounded-2xl bg-mist p-4">
               <p className="text-sm font-semibold text-ink">
-                Choose the accused leader. The system routes the case to the next higher level.
+                {hasInstitutionSpecificAccusedOptions
+                  ? `Choose the exact official from ${selectedInstitution?.institutionName}. The system routes the case to the next higher level.`
+                  : 'Choose the accused leader. The system routes the case to the next higher level.'}
               </p>
+              {hasInstitutionSpecificAccusedOptions ? (
+                <p className="text-sm text-slate">
+                  Real names below come from the registered institution team, so the complaint moves forward with the
+                  exact name and position of the accused official.
+                </p>
+              ) : null}
               <div className="grid gap-3 md:grid-cols-2">
                 {accusedLeaderOptions.map((item) => {
                   const isSelected = complaintForm.accusedLeaderEmployeeIds.includes(item.leader.employeeId);
@@ -718,8 +727,9 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                       <p className="mt-1">
                         {item.leader.positionTitle} | {item.institutionName}
                       </p>
+                      {item.leader.reportsTo ? <p className="mt-1 text-xs text-slate">Reports to: {item.leader.reportsTo}</p> : null}
                       <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-tide">
-                        {formatLevel(item.level)}
+                        {formatLevel(item.level)} {item.leader.isLeader ? '| Institution leader' : '| Institution official'}
                       </p>
                     </button>
                   );
@@ -737,6 +747,18 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                   ) : (
                     '.'
                   )}
+                </div>
+              ) : null}
+              {selectedAccusedLeaders.length > 0 ? (
+                <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate">
+                  <p className="font-semibold text-ink">
+                    Selected accused official{selectedAccusedLeaders.length === 1 ? '' : 's'}
+                  </p>
+                  <p className="mt-1">
+                    {selectedAccusedLeaders
+                      .map((entry) => `${entry.leader.fullName} (${entry.leader.positionTitle}, ${entry.institutionName})`)
+                      .join(', ')}
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -878,6 +900,16 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                   <p className="font-semibold text-ink">Leader who can help</p>
                   <p className="mt-1">
                     {selectedInstitution.helpLeader.fullName} ({selectedInstitution.helpLeader.positionTitle})
+                  </p>
+                </article>
+              ) : null}
+              {selectedInstitution.accountabilityContacts?.length > 0 ? (
+                <article className="rounded-2xl bg-mist px-4 py-4">
+                  <p className="font-semibold text-ink">Named institution officials</p>
+                  <p className="mt-1">
+                    {selectedInstitution.accountabilityContacts.length} registered official
+                    {selectedInstitution.accountabilityContacts.length === 1 ? '' : 's'} can be selected when
+                    reporting corruption for this institution.
                   </p>
                 </article>
               ) : null}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ComplaintEvidencePanel from '../components/dashboard/ComplaintEvidencePanel';
 import DashboardState from '../components/dashboard/DashboardState';
+import InstitutionAccessQrPanel from '../components/dashboard/InstitutionAccessQrPanel';
 import SectionCard from '../components/dashboard/SectionCard';
 import StatCard from '../components/dashboard/StatCard';
 import StatusBadge from '../components/dashboard/StatusBadge';
@@ -19,6 +20,25 @@ const WORKSPACE_TABS = [
   { id: 'territory', label: 'Territory', detail: 'Explorer and scope coverage' },
   { id: 'team', label: 'Team Watch', detail: 'Notifications and workload' },
 ];
+
+const CASE_VIEW_CONFIG = {
+  queue: {
+    label: 'Assigned queue',
+    description: 'All active complaints assigned to this dashboard scope.',
+  },
+  overdue: {
+    label: 'Overdue cases',
+    description: 'Cases that passed the SLA and need immediate review.',
+  },
+  resolved: {
+    label: 'Resolved this week',
+    description: 'Recently closed complaints with full status and feedback context.',
+  },
+  escalations: {
+    label: 'Escalation watch',
+    description: 'Cases that moved upward for oversight or intervention.',
+  },
+};
 
 const PAGE_SIZES = {
   queue: 3,
@@ -66,7 +86,25 @@ function formatLevel(level = '') {
 
 function getActiveWorkspace(hash) {
   const value = String(hash ?? '').replace('#', '');
-  return WORKSPACE_TABS.some((item) => item.id === value) ? value : 'overview';
+  const [workspace] = value.split('/');
+  return WORKSPACE_TABS.some((item) => item.id === workspace) ? workspace : 'overview';
+}
+
+function getActiveCaseView(hash) {
+  const value = String(hash ?? '').replace('#', '');
+  const [workspace, view] = value.split('/');
+  if (workspace !== 'cases') {
+    return 'queue';
+  }
+  return Object.prototype.hasOwnProperty.call(CASE_VIEW_CONFIG, view) ? view : 'queue';
+}
+
+function isOverdueCase(item) {
+  if (!item?.deadlineAt) {
+    return false;
+  }
+
+  return item.status !== 'resolved' && new Date(item.deadlineAt).getTime() < Date.now();
 }
 
 function paginateItems(items = [], page = 1, pageSize = 4) {
@@ -116,7 +154,9 @@ function PaginationControls({ currentPage, totalPages, onChange }) {
 function OfficerDashboardPage() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const activeWorkspace = getActiveWorkspace(location.hash);
+  const activeCaseView = getActiveCaseView(location.hash);
   const [dashboard, setDashboard] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -256,10 +296,16 @@ function OfficerDashboardPage() {
   const institutionManagement = dashboard.institutionManagement ?? {
     hasInstitutionRecord: false,
     institutionId: null,
+    slug: null,
     institutionName: 'Institution not yet registered',
+    institutionType: null,
     expectedChildUnits: null,
     registeredChildUnits: 0,
     childUnitLabel: null,
+    officeAddress: null,
+    officialEmail: null,
+    officialPhone: null,
+    leader: null,
     services: [],
     servicesCount: 0,
     employeeCount: 0,
@@ -272,11 +318,15 @@ function OfficerDashboardPage() {
     cells: [],
     villages: [],
   };
-  const queuePagination = paginateItems(dashboard.queue ?? [], pages.queue, PAGE_SIZES.queue);
   const escalationsPagination = paginateItems(
     dashboard.escalationWatch ?? [],
     pages.escalations,
     PAGE_SIZES.escalations,
+  );
+  const recentResolvedPagination = paginateItems(
+    dashboard.recentResolved ?? [],
+    pages.queue,
+    PAGE_SIZES.queue,
   );
   const leadersPagination = paginateItems(
     explorer?.leaders ?? [],
@@ -308,6 +358,29 @@ function OfficerDashboardPage() {
     pages.notifications,
     PAGE_SIZES.notifications,
   );
+  const caseStatusCounts = {
+    queue: dashboard.queue?.length ?? 0,
+    overdue: (dashboard.queue ?? []).filter(isOverdueCase).length,
+    resolved: dashboard.recentResolved?.length ?? 0,
+    escalations: dashboard.escalationWatch?.length ?? 0,
+  };
+
+  const activeCaseCollection = (() => {
+    if (activeCaseView === 'overdue') {
+      return (dashboard.queue ?? []).filter(isOverdueCase);
+    }
+    if (activeCaseView === 'resolved') {
+      return dashboard.recentResolved ?? [];
+    }
+    return dashboard.queue ?? [];
+  })();
+
+  const activeCasePagination =
+    activeCaseView === 'resolved'
+      ? recentResolvedPagination
+      : paginateItems(activeCaseCollection, pages.queue, PAGE_SIZES.queue);
+
+  const caseViewMeta = CASE_VIEW_CONFIG[activeCaseView];
 
   const updateFilter = (field, value) => {
     setFilters((current) => resetFilterChildren({ ...current, [field]: value }, field));
@@ -324,6 +397,15 @@ function OfficerDashboardPage() {
     setPages((current) => ({
       ...current,
       [key]: Math.max(1, value),
+    }));
+  };
+
+  const openCaseView = (view) => {
+    navigate(view === 'queue' ? '/dashboard/officer#cases' : `/dashboard/officer#cases/${view}`);
+    setPages((current) => ({
+      ...current,
+      queue: 1,
+      escalations: 1,
     }));
   };
 
@@ -351,6 +433,137 @@ function OfficerDashboardPage() {
     }
   };
 
+  const renderComplaintCard = (item, allowResponse = false) => (
+    <article key={item.id} className="rounded-2xl bg-mist p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-display text-xl font-black text-ink">{item.id}</p>
+          <p className="mt-1 text-sm text-slate">{item.category}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge value={item.status} />
+          {item.priority ? <StatusBadge value={item.priority} /> : null}
+          {item.feedbackStatus ? <StatusBadge value={item.feedbackStatus} /> : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm text-slate sm:grid-cols-2">
+        <p>Institution: {item.institution}</p>
+        <p>Level: {item.currentLevel}</p>
+        <p>Assigned: {item.assignedOfficer}</p>
+        <p>Deadline: {formatDateTime(item.deadlineAt)}</p>
+        <p>Submitted: {formatDateTime(item.submittedAt)}</p>
+        <p>Updated: {formatDateTime(item.updatedAt)}</p>
+        {item.resolvedAt ? <p>Resolved: {formatDateTime(item.resolvedAt)}</p> : null}
+      </div>
+      {item.sourceInstitution ? (
+        <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
+          <p className="font-semibold text-ink">{item.sourceInstitution.institutionName}</p>
+          <p className="mt-1">{item.sourceInstitution.serviceName || 'General institution complaint'}</p>
+        </div>
+      ) : null}
+      {item.reporterProfile ? (
+        <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
+          <p className="font-semibold text-ink">Citizen profile</p>
+          <p className="mt-1">
+            {item.reporterProfile.fullName} | {item.reporterProfile.citizenId || 'No citizen ID'}
+          </p>
+          <p className="mt-1">National ID: {item.reporterProfile.nationalId || 'Not available'}</p>
+          <p className="mt-1">
+            {item.reporterProfile.phone || 'No phone'} | {item.reporterProfile.email || 'No email'}
+          </p>
+          <p className="mt-1">
+            {[
+              item.reporterProfile.location?.village,
+              item.reporterProfile.location?.cell,
+              item.reporterProfile.location?.sector,
+              item.reporterProfile.location?.district,
+              item.reporterProfile.location?.province,
+            ]
+              .filter(Boolean)
+              .join(', ')}
+          </p>
+        </div>
+      ) : null}
+      {item.accusedLeaders?.length > 0 ? (
+        <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
+          <p className="font-semibold text-ink">Accused leaders</p>
+          <p className="mt-1">
+            {item.accusedLeaders.map((entry) => `${entry.leaderName} (${entry.level})`).join(', ')}
+          </p>
+        </div>
+      ) : null}
+      {item.message ? (
+        <p className="mt-3 rounded-xl bg-white px-3 py-2 text-sm leading-6 text-slate">{item.message}</p>
+      ) : null}
+      <ComplaintEvidencePanel image={item.evidenceImage} voiceNote={item.voiceNote} title="Citizen evidence" />
+      {item.response ? (
+        <div className="mt-3 rounded-xl border border-pine/20 bg-pine/10 px-3 py-3 text-sm text-slate">
+          <p className="font-semibold text-ink">Latest feedback sent</p>
+          <p className="mt-1">
+            {item.response.respondedByName} | {formatDateTime(item.response.respondedAt)}
+          </p>
+          {item.response.actionTaken ? (
+            <p className="mt-1 font-semibold text-ink">Action: {item.response.actionTaken}</p>
+          ) : null}
+          <p className="mt-2 leading-6">{item.response.message}</p>
+        </div>
+      ) : null}
+      {allowResponse && item.canRespond ? (
+        <div className="mt-4 rounded-xl border border-ink/10 bg-white p-4">
+          <div className="grid gap-3 md:grid-cols-[0.35fr_0.65fr]">
+            <label className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">
+                Action Taken
+              </span>
+              <input
+                value={responseDrafts[item.id]?.actionTaken ?? ''}
+                onChange={(event) =>
+                  setResponseDrafts((current) => ({
+                    ...current,
+                    [item.id]: {
+                      message: current[item.id]?.message ?? '',
+                      actionTaken: event.target.value,
+                    },
+                  }))
+                }
+                className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                placeholder="Example: Investigation started"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">
+                Citizen Feedback
+              </span>
+              <textarea
+                rows={4}
+                value={responseDrafts[item.id]?.message ?? ''}
+                onChange={(event) =>
+                  setResponseDrafts((current) => ({
+                    ...current,
+                    [item.id]: {
+                      actionTaken: current[item.id]?.actionTaken ?? '',
+                      message: event.target.value,
+                    },
+                  }))
+                }
+                className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                placeholder="Explain what was reviewed, what action was taken, and what the citizen should expect next."
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => submitResponse(item.id)}
+            disabled={respondingComplaintId === item.id || !(responseDrafts[item.id]?.message ?? '').trim()}
+            className="mt-4 rounded-full bg-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-70"
+          >
+            {respondingComplaintId === item.id ? 'Sending...' : 'Send feedback'}
+          </button>
+        </div>
+      ) : null}
+    </article>
+  );
+
   return (
     <div className="bg-mist">
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
@@ -366,7 +579,29 @@ function OfficerDashboardPage() {
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {dashboard.kpis.map((item) => (
-            <StatCard key={item.label} label={item.label} value={item.value} note={item.note} />
+            <StatCard
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              note={item.note}
+              onClick={
+                item.label === 'Assigned queue'
+                  ? () => openCaseView('queue')
+                  : item.label === 'Overdue cases'
+                    ? () => openCaseView('overdue')
+                    : item.label === 'Resolved this week'
+                      ? () => openCaseView('resolved')
+                      : item.label === 'Escalation watch'
+                        ? () => openCaseView('escalations')
+                        : undefined
+              }
+              isActive={
+                (item.label === 'Assigned queue' && activeWorkspace === 'cases' && activeCaseView === 'queue') ||
+                (item.label === 'Overdue cases' && activeWorkspace === 'cases' && activeCaseView === 'overdue') ||
+                (item.label === 'Resolved this week' && activeWorkspace === 'cases' && activeCaseView === 'resolved') ||
+                (item.label === 'Escalation watch' && activeWorkspace === 'cases' && activeCaseView === 'escalations')
+              }
+            />
           ))}
         </div>
 
@@ -492,6 +727,22 @@ function OfficerDashboardPage() {
                 </article>
               ))}
             </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Citizen access QR"
+            subtitle="One scan opens the institution page where a citizen can choose full information or continue to issue reporting."
+          >
+            {institutionManagement.hasInstitutionRecord && institutionManagement.slug ? (
+              <InstitutionAccessQrPanel
+                institutionSlug={institutionManagement.slug}
+                institutionName={institutionManagement.institutionName}
+              />
+            ) : (
+              <article className="rounded-2xl bg-gold/25 px-4 py-4 text-sm font-semibold text-ink">
+                Finish institution registration before publishing the citizen access QR for this dashboard.
+              </article>
+            )}
           </SectionCard>
         </div>
         ) : null}
@@ -819,8 +1070,38 @@ function OfficerDashboardPage() {
         {activeWorkspace === 'cases' ? (
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <SectionCard
-            title="Action queue"
-            subtitle="Cases are ordered by nearest deadline to reduce delay risk."
+            title="Case status navigator"
+            subtitle="Open the exact list you want instead of scanning the full dashboard."
+          >
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {Object.entries(CASE_VIEW_CONFIG).map(([key, item]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => openCaseView(key)}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    activeCaseView === key
+                      ? 'border-tide bg-tide text-white shadow-soft'
+                      : 'border-ink/10 bg-mist text-ink hover:border-tide/30'
+                  }`}
+                >
+                  <p className="text-xs font-bold uppercase tracking-[0.16em]">
+                    {item.label}
+                  </p>
+                  <p className={`mt-3 font-display text-3xl font-black ${activeCaseView === key ? 'text-white' : 'text-ink'}`}>
+                    {caseStatusCounts[key]}
+                  </p>
+                  <p className={`mt-2 text-sm leading-6 ${activeCaseView === key ? 'text-white/85' : 'text-slate'}`}>
+                    {item.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title={caseViewMeta.label}
+            subtitle={caseViewMeta.description}
           >
             {responseError ? (
               <div className="mb-4 rounded-xl border border-clay/25 bg-clay/10 px-4 py-3 text-sm text-clay">
@@ -833,157 +1114,60 @@ function OfficerDashboardPage() {
               </div>
             ) : null}
             <div className="space-y-3">
-              {queuePagination.items.length > 0 ? (
-              queuePagination.items.map((item) => (
-                <article key={item.id} className="rounded-2xl bg-mist p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-display text-xl font-black text-ink">{item.id}</p>
-                      <p className="mt-1 text-sm text-slate">{item.category}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <StatusBadge value={item.status} />
-                      <StatusBadge value={item.priority} />
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-2 text-sm text-slate sm:grid-cols-2">
-                    <p>Institution: {item.institution}</p>
-                    <p>Level: {item.currentLevel}</p>
-                    <p>Assigned: {item.assignedOfficer}</p>
-                    <p>Deadline: {formatDateTime(item.deadlineAt)}</p>
-                    <p>Submitted: {formatDateTime(item.submittedAt)}</p>
-                    <p>Updated: {formatDateTime(item.updatedAt)}</p>
-                  </div>
-                  {item.sourceInstitution ? (
-                    <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
-                      <p className="font-semibold text-ink">{item.sourceInstitution.institutionName}</p>
-                      <p className="mt-1">{item.sourceInstitution.serviceName || 'General institution complaint'}</p>
-                    </div>
-                  ) : null}
-                  {item.reporterProfile ? (
-                    <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
-                      <p className="font-semibold text-ink">Citizen profile</p>
-                      <p className="mt-1">
-                        {item.reporterProfile.fullName} | {item.reporterProfile.citizenId || 'No citizen ID'}
+              {activeCaseView === 'escalations' ? (
+                escalationsPagination.items.length > 0 ? (
+                  escalationsPagination.items.map((item) => (
+                    <article key={item.complaintId} className="rounded-2xl bg-mist p-4">
+                      <p className="font-semibold text-ink">{item.complaintId}</p>
+                      <p className="mt-1 text-sm text-slate">{item.institution}</p>
+                      <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-clay">
+                        {formatLevel(item.fromLevel)} to {formatLevel(item.toLevel)}
                       </p>
-                      <p className="mt-1">National ID: {item.reporterProfile.nationalId || 'Not available'}</p>
-                      <p className="mt-1">
-                        {item.reporterProfile.phone || 'No phone'} | {item.reporterProfile.email || 'No email'}
+                      <p className="mt-2 text-sm leading-6 text-slate">{item.reason}</p>
+                      <p className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-slate">
+                        Escalated {formatDateTime(item.escalatedAt)}
                       </p>
-                      <p className="mt-1">
-                        {[
-                          item.reporterProfile.location?.village,
-                          item.reporterProfile.location?.cell,
-                          item.reporterProfile.location?.sector,
-                          item.reporterProfile.location?.district,
-                          item.reporterProfile.location?.province,
-                        ]
-                          .filter(Boolean)
-                          .join(', ')}
-                      </p>
-                    </div>
-                  ) : null}
-                  {item.accusedLeaders?.length > 0 ? (
-                    <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
-                      <p className="font-semibold text-ink">Accused leaders</p>
-                      <p className="mt-1">
-                        {item.accusedLeaders.map((entry) => `${entry.leaderName} (${entry.level})`).join(', ')}
-                      </p>
-                    </div>
-                  ) : null}
-                  {item.message ? (
-                    <p className="mt-3 rounded-xl bg-white px-3 py-2 text-sm leading-6 text-slate">
-                      {item.message}
-                    </p>
-                  ) : null}
-                  <ComplaintEvidencePanel
-                    image={item.evidenceImage}
-                    voiceNote={item.voiceNote}
-                    title="Citizen evidence"
-                  />
-                  {item.response ? (
-                    <div className="mt-3 rounded-xl border border-pine/20 bg-pine/10 px-3 py-3 text-sm text-slate">
-                      <p className="font-semibold text-ink">Latest feedback sent</p>
-                      <p className="mt-1">
-                        {item.response.respondedByName} | {formatDateTime(item.response.respondedAt)}
-                      </p>
-                      {item.response.actionTaken ? (
-                        <p className="mt-1 font-semibold text-ink">Action: {item.response.actionTaken}</p>
-                      ) : null}
-                      <p className="mt-2 leading-6">{item.response.message}</p>
-                    </div>
-                  ) : null}
-                  {item.canRespond ? (
-                    <div className="mt-4 rounded-xl border border-ink/10 bg-white p-4">
-                      <div className="grid gap-3 md:grid-cols-[0.35fr_0.65fr]">
-                        <label className="space-y-2">
-                          <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">
-                            Action Taken
-                          </span>
-                          <input
-                            value={responseDrafts[item.id]?.actionTaken ?? ''}
-                            onChange={(event) =>
-                              setResponseDrafts((current) => ({
-                                ...current,
-                                [item.id]: {
-                                  message: current[item.id]?.message ?? '',
-                                  actionTaken: event.target.value,
-                                },
-                              }))
-                            }
-                            className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
-                            placeholder="Example: Investigation started"
-                          />
-                        </label>
-                        <label className="space-y-2">
-                          <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">
-                            Citizen Feedback
-                          </span>
-                          <textarea
-                            rows={4}
-                            value={responseDrafts[item.id]?.message ?? ''}
-                            onChange={(event) =>
-                              setResponseDrafts((current) => ({
-                                ...current,
-                                [item.id]: {
-                                  actionTaken: current[item.id]?.actionTaken ?? '',
-                                  message: event.target.value,
-                                },
-                              }))
-                            }
-                            className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
-                            placeholder="Explain what was reviewed, what action was taken, and what the citizen should expect next."
-                          />
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => submitResponse(item.id)}
-                        disabled={respondingComplaintId === item.id || !(responseDrafts[item.id]?.message ?? '').trim()}
-                        className="mt-4 rounded-full bg-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-70"
-                      >
-                        {respondingComplaintId === item.id ? 'Sending...' : 'Send feedback'}
-                      </button>
-                    </div>
-                  ) : null}
-                </article>
-              ))
+                    </article>
+                  ))
+                ) : (
+                  <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
+                    No escalations are currently waiting in this workspace.
+                  </article>
+                )
+              ) : activeCasePagination.items.length > 0 ? (
+                activeCasePagination.items.map((item) => renderComplaintCard(item, activeCaseView !== 'resolved'))
               ) : (
                 <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
-                  No active complaint is currently assigned to this dashboard scope.
+                  {activeCaseView === 'resolved'
+                    ? 'No resolved complaints were recorded in the last seven days for this scope.'
+                    : activeCaseView === 'overdue'
+                      ? 'No overdue complaints are currently waiting in this dashboard scope.'
+                      : 'No active complaint is currently assigned to this dashboard scope.'}
                 </article>
               )}
             </div>
-            <PaginationControls
-              currentPage={queuePagination.currentPage}
-              totalPages={queuePagination.totalPages}
-              onChange={(value) => updatePage('queue', value)}
-            />
+            {activeCaseView === 'escalations' ? (
+              <PaginationControls
+                currentPage={escalationsPagination.currentPage}
+                totalPages={escalationsPagination.totalPages}
+                onChange={(value) => updatePage('escalations', value)}
+              />
+            ) : (
+              <PaginationControls
+                currentPage={activeCasePagination.currentPage}
+                totalPages={activeCasePagination.totalPages}
+                onChange={(value) => updatePage('queue', value)}
+              />
+            )}
           </SectionCard>
 
           <SectionCard
             title="Escalation watch"
-            subtitle="Recent escalations requiring quality review and intervention."
+            subtitle={
+              activeCaseView === 'escalations'
+                ? 'Escalation status is active. Use this side panel for a compact snapshot.'
+                : 'Recent escalations requiring quality review and intervention.'
+            }
           >
             <div className="space-y-3">
               {escalationsPagination.items.length > 0 ? (

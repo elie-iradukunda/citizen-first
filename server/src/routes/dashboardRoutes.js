@@ -920,6 +920,8 @@ function serializeLeaderChainEntry(entry) {
     leaderName: entry.leader?.fullName ?? 'Unknown leader',
     leaderEmployeeId: entry.leader?.employeeId ?? null,
     positionTitle: entry.leader?.positionTitle ?? null,
+    reportsTo: entry.leader?.reportsTo ?? null,
+    isLeader: entry.leader?.isLeader === true,
   };
 }
 
@@ -946,6 +948,7 @@ function buildComplaintSummary(item) {
     submittedAt: item.submittedAt,
     updatedAt: item.updatedAt,
     deadlineAt: item.deadlineAt,
+    resolvedAt: item.resolvedAt ?? null,
     citizenReference: item.citizenReference ?? null,
     reportingMode: item.reportingMode ?? 'verified',
     submittedVia: item.submittedVia ?? 'dashboard',
@@ -1004,8 +1007,34 @@ function buildInstitutionHelpLeader(institution) {
   };
 }
 
+function buildInstitutionAccountabilityContacts(institution) {
+  return institutionEmployees
+    .filter((employee) => employee.institutionId === institution.institutionId)
+    .slice()
+    .sort((left, right) => {
+      if (left.isLeader !== right.isLeader) {
+        return left.isLeader ? -1 : 1;
+      }
+
+      return left.fullName.localeCompare(right.fullName);
+    })
+    .map((employee) => ({
+      employeeId: employee.employeeId,
+      fullName: employee.fullName,
+      nationalId: employee.nationalId,
+      phone: employee.phone,
+      email: employee.email,
+      positionTitle: employee.positionTitle,
+      positionKinyarwanda: employee.positionKinyarwanda,
+      reportsTo: employee.reportsTo,
+      description: employee.description ?? '',
+      isLeader: employee.isLeader === true,
+    }));
+}
+
 function buildCitizenInstitutionEntry(institution) {
   const helpLeader = buildInstitutionHelpLeader(institution);
+  const accountabilityContacts = buildInstitutionAccountabilityContacts(institution);
 
   return {
     institutionId: institution.institutionId,
@@ -1019,6 +1048,7 @@ function buildCitizenInstitutionEntry(institution) {
     servicesCount: institution.services?.length ?? 0,
     services: (institution.services ?? []).map((service, index) => normalizeCitizenService(service, index)),
     helpLeader,
+    accountabilityContacts,
     reportUrl: buildCitizenDashboardReportUrl(institution.slug),
     institutionQrCodeDataUrl: institution.qrCodeDataUrl ?? null,
   };
@@ -1066,6 +1096,32 @@ function buildComplaintTargetLeaders(leaderChain = [], institutionEntries = [], 
   }
 
   return [...targets.values()];
+}
+
+function buildAccusedLeaderOptions(leaderChain = [], selectedInstitution = null) {
+  if (selectedInstitution?.accountabilityContacts?.length > 0) {
+    return selectedInstitution.accountabilityContacts.map((contact) => ({
+      level: selectedInstitution.level,
+      institutionId: selectedInstitution.institutionId,
+      institutionName: selectedInstitution.institutionName,
+      institutionSlug: selectedInstitution.institutionSlug,
+      leader: contact,
+      optionSource: 'institution',
+      reviewLevel: getNextEscalationLevel(selectedInstitution.level),
+    }));
+  }
+
+  return leaderChain
+    .filter((entry) => entry.leader)
+    .map((entry) => ({
+      level: entry.level,
+      institutionId: entry.institutionId,
+      institutionName: entry.institutionName,
+      institutionSlug: entry.slug ?? null,
+      leader: entry.leader,
+      optionSource: 'hierarchy',
+      reviewLevel: getNextEscalationLevel(entry.level),
+    }));
 }
 
 function findSystemUserByAssignmentId(assignmentId) {
@@ -1195,14 +1251,7 @@ function buildCitizenExplorer(rawFilters = {}) {
     institutionDirectory,
     selectedInstitutionEntry,
   );
-  const accusedLeaderOptions = leaderChain
-    .filter((entry) => entry.leader)
-    .map((entry) => ({
-      level: entry.level,
-      institutionId: entry.institutionId,
-      institutionName: entry.institutionName,
-      leader: entry.leader,
-    }));
+  const accusedLeaderOptions = buildAccusedLeaderOptions(leaderChain, selectedInstitutionEntry);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -1313,8 +1362,14 @@ function buildInstitutionManagementSummary(user) {
     return {
       hasInstitutionRecord: true,
       institutionId: NATIONAL_ROOT_ID,
+      slug: null,
       institutionName: 'National Governance Platform',
+      institutionType: 'National Governance Command',
       level: 'national',
+      officeAddress: 'National governance command center',
+      officialEmail: null,
+      officialPhone: null,
+      leader: null,
       expectedChildUnits: RWANDA_ADMINISTRATIVE_STRUCTURE.length,
       registeredChildUnits: provinces.length,
       childUnitLabel: 'provinces',
@@ -1340,8 +1395,14 @@ function buildInstitutionManagementSummary(user) {
     return {
       hasInstitutionRecord: false,
       institutionId: user?.institutionId ?? null,
+      slug: null,
       institutionName: 'Institution not yet registered',
+      institutionType: null,
       level,
+      officeAddress: null,
+      officialEmail: null,
+      officialPhone: null,
+      leader: null,
       expectedChildUnits: null,
       registeredChildUnits: 0,
       childUnitLabel: null,
@@ -1359,9 +1420,15 @@ function buildInstitutionManagementSummary(user) {
   return {
     hasInstitutionRecord: true,
     institutionId: institution.institutionId,
+    slug: institution.slug,
     institutionName: institution.institutionName,
+    institutionType: institution.institutionType ?? 'Government Institution',
     level: institution.level,
     location: institution.location,
+    officeAddress: institution.officeAddress ?? null,
+    officialEmail: institution.officialEmail ?? null,
+    officialPhone: institution.officialPhone ?? null,
+    leader: buildInstitutionHelpLeader(institution),
     expectedChildUnits: institution.expectedChildUnits ?? null,
     registeredChildUnits: children.length,
     childUnitLabel: institution.childUnitLabel ?? null,
@@ -1599,6 +1666,16 @@ function buildOfficerDashboard(user) {
   const notifications = citizenIssueNotifications
     .filter((item) => item.userId === user?.userId)
     .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+  const recentResolved = getResolvedCases()
+    .filter(
+      (item) =>
+        new Date(item.resolvedAt) >= sevenDaysAgo && matchesUserScope(user, getComplaintLocation(item)),
+    )
+    .sort((left, right) => new Date(right.resolvedAt) - new Date(left.resolvedAt))
+    .map((item) => ({
+      ...buildComplaintSummary(item),
+      canRespond: false,
+    }));
 
   return {
     role: 'officer',
@@ -1631,6 +1708,7 @@ function buildOfficerDashboard(user) {
       },
     ],
     queue,
+    recentResolved,
     workload,
     escalationWatch: escalations
       .filter((entry) => scopedLevels.has(entry.toLevel) || scopedLevels.has(entry.fromLevel))
@@ -2244,12 +2322,14 @@ router.post('/citizen/complaints', (request, response) => {
     }
   } else {
     accusedLeaderEntries = (payload.accusedLeaderEmployeeIds ?? [])
-      .map((employeeId) => findLeaderChainEntryByEmployeeId(context.leaderChain ?? [], employeeId))
+      .map((employeeId) =>
+        (context.accusedLeaderOptions ?? []).find((entry) => entry.leader?.employeeId === employeeId) ?? null,
+      )
       .filter(Boolean);
 
     if (accusedLeaderEntries.length !== (payload.accusedLeaderEmployeeIds ?? []).length) {
       return response.status(400).json({
-        message: 'Accused leaders must come from your visible village-to-province leadership chain.',
+        message: 'Accused leaders must come from the visible institution or leadership list.',
       });
     }
 

@@ -111,6 +111,7 @@ const demoAccessKeys = [
 function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get('redirect');
+  const switchAccount = searchParams.get('switch') === '1';
   const navigate = useNavigate();
   const { login, user, isAuthenticated, isChecking } = useAuth();
 
@@ -122,12 +123,12 @@ function LoginPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isChecking || !isAuthenticated || !user) {
+    if (isChecking || !isAuthenticated || !user || switchAccount) {
       return;
     }
 
     navigate(redirectPath || getRoleDashboardPath(user.role), { replace: true });
-  }, [isAuthenticated, isChecking, navigate, redirectPath, user]);
+  }, [isAuthenticated, isChecking, navigate, redirectPath, switchAccount, user]);
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -233,6 +234,13 @@ function LoginPage() {
             {error ? (
               <div className="mt-4 rounded-xl border border-clay/25 bg-clay/10 px-4 py-3 text-sm text-clay">
                 {error}
+              </div>
+            ) : null}
+
+            {switchAccount ? (
+              <div className="mt-4 rounded-xl border border-gold/30 bg-gold/20 px-4 py-3 text-sm text-ink">
+                Continue with a citizen account to submit an institution issue report. Signing in here will replace the
+                current session.
               </div>
             ) : null}
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DashboardState from '../components/dashboard/DashboardState';
+import InstitutionAccessQrPanel from '../components/dashboard/InstitutionAccessQrPanel';
 import LocationFieldGroup from '../components/forms/LocationFieldGroup';
 import { useRwandaLocation } from '../hooks/useRwandaLocation';
 import {
@@ -745,11 +746,12 @@ function InstitutionRegistrationPage() {
                 <p className="mt-2 text-sm leading-7 text-slate">
                   Services captured: {successData.servicesCount}
                 </p>
-                <img
-                  src={successData.institution.qrCodeDataUrl}
-                  alt="Institution generated QR"
-                  className="mt-4 w-56 rounded-xl border border-ink/10 bg-mist p-2"
-                />
+                <div className="mt-5">
+                  <InstitutionAccessQrPanel
+                    institutionSlug={successData.institution.slug}
+                    institutionName={successData.institution.institutionName}
+                  />
+                </div>
               </div>
             ) : (
               <DashboardState
