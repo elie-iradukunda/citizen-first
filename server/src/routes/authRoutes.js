@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { registeredCitizens, systemUsers } from '../data/registrationData.js';
+import { institutionEmployees, registeredCitizens, systemUsers } from '../data/registrationData.js';
 import { createSession, removeSession } from '../data/sessionStore.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 
@@ -46,17 +46,26 @@ function buildSafeUserProfile(user) {
     user.role === 'citizen'
       ? registeredCitizens.find((entry) => entry.nationalId === user.nationalId) ?? null
       : null;
+  const institutionEmployee =
+    user.role !== 'citizen' && user.institutionId && user.nationalId
+      ? institutionEmployees.find(
+          (entry) =>
+            entry.institutionId === user.institutionId && entry.nationalId === user.nationalId,
+        ) ?? null
+      : null;
 
   return {
     userId: user.userId,
     citizenId: citizenRecord?.citizenId ?? null,
+    employeeId: user.employeeId ?? institutionEmployee?.employeeId ?? null,
     fullName: user.fullName,
     email: user.email ?? null,
-    phone: user.phone ?? citizenRecord?.phone ?? null,
+    phone: user.phone ?? institutionEmployee?.phone ?? citizenRecord?.phone ?? null,
     nationalId: user.nationalId ?? null,
     role: user.role,
     level: user.level,
     institutionId: user.institutionId ?? null,
+    positionTitle: user.positionTitle ?? institutionEmployee?.positionTitle ?? null,
     location: user.location ?? null,
   };
 }

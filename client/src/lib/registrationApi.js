@@ -1,6 +1,15 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 const AUTH_TOKEN_KEY = 'cf_auth_token';
 
+function getAuthHeaders(withJson = false) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+  return {
+    ...(withJson ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, options);
   const payload = await response.json().catch(() => ({}));
@@ -145,4 +154,37 @@ export function registerCitizen(payload) {
     },
     body: JSON.stringify(payload),
   });
+}
+
+export function fetchInstitutionManagement(institutionId) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/manage`, {
+    headers: getAuthHeaders(),
+  });
+}
+
+export function updateInstitutionManagement(institutionId, payload) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/manage`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createInstitutionStaffMember(institutionId, payload) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/employees`, {
+    method: 'POST',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createInstitutionStaffAccount(institutionId, employeeId, payload) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/employees/${encodeURIComponent(employeeId)}/account`,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    },
+  );
 }

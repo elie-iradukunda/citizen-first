@@ -72,6 +72,7 @@ function DashboardLayout() {
           { to: `${dashboardHomePath}#cases`, label: 'Case Queue' },
           { to: `${dashboardHomePath}#territory`, label: 'Territory Explorer' },
           { to: `${dashboardHomePath}#team`, label: 'Team Watch' },
+          { to: `${dashboardHomePath}#institution-admin`, label: 'Institution Admin' },
           ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'Invite Setup' }] : []),
         ];
 

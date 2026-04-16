@@ -39,6 +39,18 @@ const INITIAL_FILTERS = {
   village: '',
 };
 
+const PAGE_SIZES = {
+  services: 4,
+  institutions: 4,
+  leaders: 4,
+};
+
+const INITIAL_PAGES = {
+  services: 1,
+  institutions: 1,
+  leaders: 1,
+};
+
 function buildInitialComplaint(sourceInstitutionSlug = '', submittedVia = 'dashboard') {
   return {
     issueType: 'service_issue',
@@ -116,6 +128,50 @@ function ModeLink({ active, to, children }) {
   );
 }
 
+function paginateItems(items = [], page = 1, pageSize = 4) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const start = (currentPage - 1) * pageSize;
+
+  return {
+    currentPage,
+    totalPages,
+    items: items.slice(start, start + pageSize),
+  };
+}
+
+function PaginationControls({ currentPage, totalPages, onChange }) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-4">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate">
+        Page {currentPage} of {totalPages}
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="rounded-full border border-ink/15 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-ink disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="rounded-full border border-ink/15 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-ink disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CitizenDashboardPage({ mode = 'overview' }) {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -126,6 +182,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [filtersInitialized, setFiltersInitialized] = useState(false);
   const [complaintForm, setComplaintForm] = useState(() => buildInitialComplaint(qrInstitutionSlug, qrSource));
+  const [pages, setPages] = useState(INITIAL_PAGES);
   const [refreshToken, setRefreshToken] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(true);
@@ -218,6 +275,9 @@ function CitizenDashboardPage({ mode = 'overview' }) {
     }
     return items;
   }, [context?.institutionDirectory, context?.selectedInstitution]);
+  const servicesPagination = paginateItems(context?.services ?? [], pages.services, PAGE_SIZES.services);
+  const institutionsPagination = paginateItems(allInstitutions, pages.institutions, PAGE_SIZES.institutions);
+  const leadersPagination = paginateItems(context?.leaderChain ?? [], pages.leaders, PAGE_SIZES.leaders);
 
   const selectedInstitution = useMemo(
     () => {
@@ -328,6 +388,14 @@ function CitizenDashboardPage({ mode = 'overview' }) {
 
   const updateFilter = (field, value) => {
     setFilters((current) => resetFilterChildren({ ...current, [field]: value }, field));
+    setPages(INITIAL_PAGES);
+  };
+
+  const updatePage = (key, value) => {
+    setPages((current) => ({
+      ...current,
+      [key]: Math.max(1, value),
+    }));
   };
 
   const updateComplaintField = (field, value) => {
@@ -941,8 +1009,8 @@ function CitizenDashboardPage({ mode = 'overview' }) {
     <div className="mt-8 grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
       <SectionCard title="Services in your visible governance area" subtitle="Official fees, free services, and leaders who can help.">
         <div className="grid gap-4 md:grid-cols-2">
-          {(context?.services ?? []).length > 0 ? (
-            context.services.map((item, index) => (
+          {servicesPagination.items.length > 0 ? (
+            servicesPagination.items.map((item, index) => (
               <article key={`${item.institutionId}-${item.name}-${index}`} className="rounded-2xl bg-mist p-4">
                 <p className="font-semibold text-ink">{item.name}</p>
                 <p className="mt-1 text-sm text-slate">
@@ -983,12 +1051,17 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             </article>
           )}
         </div>
+        <PaginationControls
+          currentPage={servicesPagination.currentPage}
+          totalPages={servicesPagination.totalPages}
+          onChange={(value) => updatePage('services', value)}
+        />
       </SectionCard>
 
       <SectionCard title="Institution directory" subtitle="Visible offices, contacts, and the leader assigned to support citizens.">
         <div className="space-y-3">
-          {allInstitutions.length > 0 ? (
-            allInstitutions.map((item) => (
+          {institutionsPagination.items.length > 0 ? (
+            institutionsPagination.items.map((item) => (
               <article key={item.institutionId} className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
                 <p className="font-semibold text-ink">{item.institutionName}</p>
                 <p className="mt-1">
@@ -1012,6 +1085,11 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             </article>
           )}
         </div>
+        <PaginationControls
+          currentPage={institutionsPagination.currentPage}
+          totalPages={institutionsPagination.totalPages}
+          onChange={(value) => updatePage('institutions', value)}
+        />
       </SectionCard>
     </div>
   );
@@ -1020,8 +1098,8 @@ function CitizenDashboardPage({ mode = 'overview' }) {
     <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
       <SectionCard title="Leadership chain" subtitle="Village, cell, sector, district, and province leadership visible to this citizen.">
         <div className="grid gap-4 md:grid-cols-2">
-          {(context?.leaderChain ?? []).length > 0 ? (
-            context.leaderChain.map((entry) => (
+          {leadersPagination.items.length > 0 ? (
+            leadersPagination.items.map((entry) => (
               <article key={`${entry.level}-${entry.institutionId}`} className="rounded-2xl bg-mist p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">{formatLevel(entry.level)}</p>
                 <p className="mt-1 font-semibold text-ink">{entry.institutionName}</p>
@@ -1049,6 +1127,11 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             </article>
           )}
         </div>
+        <PaginationControls
+          currentPage={leadersPagination.currentPage}
+          totalPages={leadersPagination.totalPages}
+          onChange={(value) => updatePage('leaders', value)}
+        />
       </SectionCard>
 
       <SectionCard title="How complaints move upward" subtitle="The next review office changes automatically depending on who is accused or who fails to respond.">

@@ -134,6 +134,53 @@ const registerInstitutionSchema = z.object({
   services: z.array(serviceItemSchema).max(20).optional(),
 });
 
+const manageInstitutionSchema = z.object({
+  institutionType: z.string().min(2).max(120),
+  officialEmail: emailSchema.optional().or(z.literal('')),
+  officialPhone: phoneSchema,
+  officeAddress: z.string().min(4).max(240),
+  services: z.array(serviceItemSchema).max(40).default([]),
+});
+
+const createInstitutionStaffSchema = z
+  .object({
+    fullName: z.string().min(4).max(140),
+    nationalId: nationalIdSchema,
+    phone: phoneSchema,
+    email: emailSchema.optional().or(z.literal('')),
+    password: passwordSchema.optional().or(z.literal('')),
+    positionTitle: z.string().min(2).max(120),
+    positionKinyarwanda: z.string().max(180).optional().or(z.literal('')),
+    reportsTo: z.string().max(140).optional().or(z.literal('')),
+    description: z.string().max(320).optional().or(z.literal('')),
+    status: z.enum(['Active', 'Inactive']).default('Active'),
+    createPlatformAccount: z.boolean().default(true),
+  })
+  .superRefine((payload, context) => {
+    if (payload.createPlatformAccount) {
+      if (!payload.email?.trim()) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Email is required when creating a platform account.',
+          path: ['email'],
+        });
+      }
+
+      if (!payload.password?.trim()) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Temporary password is required when creating a platform account.',
+          path: ['password'],
+        });
+      }
+    }
+  });
+
+const createInstitutionEmployeeAccountSchema = z.object({
+  email: emailSchema.optional().or(z.literal('')),
+  password: passwordSchema,
+});
+
 const registerCitizenSchema = z.object({
   fullName: z.string().min(4).max(140),
   nationalId: nationalIdSchema,
@@ -739,6 +786,150 @@ function canActorViewInstitution(actor, institution) {
   }
 
   return ensureLocationInActorScope(actor, institution.location);
+}
+
+function canActorManageInstitution(actor, institution) {
+  if (!actor || !institution) {
+    return false;
+  }
+
+  if (['national_admin', 'oversight_admin'].includes(actor.role)) {
+    return true;
+  }
+
+  return actor.institutionId === institution.institutionId;
+}
+
+function findInstitutionEmployeeById(institutionId, employeeId) {
+  return (
+    institutionEmployees.find(
+      (entry) => entry.institutionId === institutionId && entry.employeeId === employeeId,
+    ) ?? null
+  );
+}
+
+function findInstitutionPlatformUser(employee) {
+  if (!employee?.institutionId || !employee?.nationalId) {
+    return null;
+  }
+
+  return (
+    systemUsers.find(
+      (entry) =>
+        entry.institutionId === employee.institutionId &&
+        entry.nationalId === employee.nationalId,
+    ) ?? null
+  );
+}
+
+function buildInstitutionManagementItem(institution) {
+  const employees = institutionEmployees
+    .filter((entry) => entry.institutionId === institution.institutionId)
+    .slice()
+    .sort((left, right) => {
+      if (left.isLeader !== right.isLeader) {
+        return left.isLeader ? -1 : 1;
+      }
+
+      return left.fullName.localeCompare(right.fullName);
+    })
+    .map((employee) => {
+      const account = findInstitutionPlatformUser(employee);
+
+      return {
+        employeeId: employee.employeeId,
+        fullName: employee.fullName,
+        nationalId: employee.nationalId,
+        phone: employee.phone,
+        email: employee.email ?? null,
+        positionTitle: employee.positionTitle,
+        positionKinyarwanda: employee.positionKinyarwanda ?? null,
+        reportsTo: employee.reportsTo ?? null,
+        description: employee.description ?? null,
+        status: employee.status,
+        isLeader: employee.isLeader === true,
+        hasPlatformAccount: Boolean(account),
+        account: account
+          ? {
+              userId: account.userId,
+              role: account.role,
+              level: account.level,
+              email: account.email ?? null,
+              status: account.status,
+              employeeId: account.employeeId ?? null,
+            }
+          : null,
+      };
+    });
+
+  return {
+    institutionId: institution.institutionId,
+    slug: institution.slug,
+    institutionName: institution.institutionName,
+    institutionType: institution.institutionType ?? 'Government Institution',
+    level: institution.level,
+    location: institution.location,
+    officialEmail: institution.officialEmail ?? '',
+    officialPhone: institution.officialPhone ?? '',
+    officeAddress: institution.officeAddress ?? '',
+    services: institution.services ?? [],
+    departments: institutionDepartments.filter(
+      (entry) => entry.institutionId === institution.institutionId,
+    ),
+    employees,
+    employeeCount: employees.length,
+    servicesCount: institution.services?.length ?? 0,
+    expectedChildUnits: institution.expectedChildUnits ?? null,
+    registeredChildUnits: institution.registeredChildUnits ?? 0,
+    childUnitLabel: institution.childUnitLabel ?? null,
+    children: getChildrenInstitutions(institution.institutionId).map((child) => ({
+      institutionId: child.institutionId,
+      institutionName: child.institutionName,
+      level: child.level,
+      servicesCount: child.services?.length ?? 0,
+      employeeCount: child.employeeCount ?? 0,
+      location: child.location,
+    })),
+  };
+}
+
+function createInstitutionPlatformAccount({ institution, employee, email, password }) {
+  const userId = generateId('USR', systemUsers.length);
+  const normalizedEmail = normalizeEmail(email);
+  const accessKey = `CF-${LEVEL_PREFIX[institution.level] ?? 'INS'}-OPS-${crypto
+    .randomBytes(4)
+    .toString('hex')
+    .toUpperCase()}`;
+  const user = {
+    userId,
+    role: 'institution_officer',
+    level: institution.level,
+    institutionId: institution.institutionId,
+    employeeId: employee.employeeId,
+    fullName: employee.fullName,
+    email: normalizedEmail,
+    phone: employee.phone,
+    nationalId: employee.nationalId,
+    positionTitle: employee.positionTitle,
+    accessKey,
+    status: employee.status === 'Active' ? 'active' : 'inactive',
+    location: institution.location,
+    ...createPasswordCredentials(password, userId),
+    createdAt: new Date().toISOString(),
+  };
+
+  systemUsers.push(user);
+  employee.email = normalizedEmail;
+
+  return {
+    user,
+    credentials: {
+      userId: user.userId,
+      role: user.role,
+      email: user.email,
+      accessKey: user.accessKey,
+    },
+  };
 }
 
 function matchesLocationFilters(location, filters) {
@@ -1555,6 +1746,240 @@ router.get('/institutions', (request, response) => {
 
   return response.json({
     items,
+  });
+});
+
+router.get('/institutions/:institutionId/manage', (request, response) => {
+  const actor = resolveActor(request);
+  if (!actor) {
+    return response.status(401).json({
+      message: 'Authentication or access key is required.',
+    });
+  }
+
+  const institution = findInstitutionById(request.params.institutionId);
+  if (!institution) {
+    return response.status(404).json({
+      message: 'Institution not found.',
+    });
+  }
+
+  if (!canActorManageInstitution(actor, institution)) {
+    return response.status(403).json({
+      message: 'You do not have permission to manage this institution.',
+    });
+  }
+
+  return response.json({
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.patch('/institutions/:institutionId/manage', (request, response) => {
+  const actor = resolveActor(request);
+  if (!actor) {
+    return response.status(401).json({
+      message: 'Authentication or access key is required.',
+    });
+  }
+
+  const institution = findInstitutionById(request.params.institutionId);
+  if (!institution) {
+    return response.status(404).json({
+      message: 'Institution not found.',
+    });
+  }
+
+  if (!canActorManageInstitution(actor, institution)) {
+    return response.status(403).json({
+      message: 'You do not have permission to manage this institution.',
+    });
+  }
+
+  const parseResult = manageInstitutionSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid institution management payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const payload = parseResult.data;
+  institution.institutionType = payload.institutionType;
+  institution.officialEmail = payload.officialEmail || null;
+  institution.officialPhone = payload.officialPhone;
+  institution.officeAddress = payload.officeAddress;
+  institution.services = normalizeServiceCatalog(payload.services);
+  institution.updatedAt = new Date().toISOString();
+
+  return response.json({
+    message: 'Institution profile updated successfully.',
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.post('/institutions/:institutionId/employees', (request, response) => {
+  const actor = resolveActor(request);
+  if (!actor) {
+    return response.status(401).json({
+      message: 'Authentication or access key is required.',
+    });
+  }
+
+  const institution = findInstitutionById(request.params.institutionId);
+  if (!institution) {
+    return response.status(404).json({
+      message: 'Institution not found.',
+    });
+  }
+
+  if (!canActorManageInstitution(actor, institution)) {
+    return response.status(403).json({
+      message: 'You do not have permission to manage this institution.',
+    });
+  }
+
+  const parseResult = createInstitutionStaffSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid institution staff payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const payload = parseResult.data;
+
+  if (institutionEmployees.some((entry) => entry.nationalId === payload.nationalId)) {
+    return response.status(409).json({
+      message: 'A staff member with this national ID is already registered.',
+    });
+  }
+
+  if (payload.createPlatformAccount && isEmailAlreadyInUse(payload.email)) {
+    return response.status(409).json({
+      message: 'This email is already in use by another platform account.',
+    });
+  }
+
+  const employee = {
+    employeeId: generateId('EMP', institutionEmployees.length),
+    institutionId: institution.institutionId,
+    leaderCode: null,
+    fullName: payload.fullName,
+    nationalId: payload.nationalId,
+    phone: payload.phone,
+    email: payload.email || null,
+    positionTitle: payload.positionTitle,
+    positionKinyarwanda: payload.positionKinyarwanda || null,
+    reportsTo: payload.reportsTo || null,
+    description: payload.description || null,
+    status: payload.status,
+    isLeader: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  institutionEmployees.push(employee);
+  institution.employeeCount = institutionEmployees.filter(
+    (entry) => entry.institutionId === institution.institutionId,
+  ).length;
+  institution.updatedAt = new Date().toISOString();
+
+  let createdAccount = null;
+  if (payload.createPlatformAccount) {
+    createdAccount = createInstitutionPlatformAccount({
+      institution,
+      employee,
+      email: payload.email,
+      password: payload.password,
+    }).credentials;
+  }
+
+  return response.status(201).json({
+    message: payload.createPlatformAccount
+      ? 'Institution staff member and platform account created successfully.'
+      : 'Institution staff member created successfully.',
+    createdEmployee: {
+      employeeId: employee.employeeId,
+      fullName: employee.fullName,
+      positionTitle: employee.positionTitle,
+    },
+    createdAccount,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.post('/institutions/:institutionId/employees/:employeeId/account', (request, response) => {
+  const actor = resolveActor(request);
+  if (!actor) {
+    return response.status(401).json({
+      message: 'Authentication or access key is required.',
+    });
+  }
+
+  const institution = findInstitutionById(request.params.institutionId);
+  if (!institution) {
+    return response.status(404).json({
+      message: 'Institution not found.',
+    });
+  }
+
+  if (!canActorManageInstitution(actor, institution)) {
+    return response.status(403).json({
+      message: 'You do not have permission to manage this institution.',
+    });
+  }
+
+  const employee = findInstitutionEmployeeById(
+    institution.institutionId,
+    request.params.employeeId,
+  );
+  if (!employee) {
+    return response.status(404).json({
+      message: 'Staff member not found in this institution.',
+    });
+  }
+
+  if (findInstitutionPlatformUser(employee)) {
+    return response.status(409).json({
+      message: 'This staff member already has a platform account.',
+    });
+  }
+
+  const parseResult = createInstitutionEmployeeAccountSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid platform account payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const payload = parseResult.data;
+  const accountEmail = payload.email?.trim() || employee.email?.trim() || '';
+  if (!accountEmail) {
+    return response.status(400).json({
+      message: 'Provide an email address before creating a platform account.',
+    });
+  }
+
+  if (isEmailAlreadyInUse(accountEmail)) {
+    return response.status(409).json({
+      message: 'This email is already in use by another platform account.',
+    });
+  }
+
+  const createdAccount = createInstitutionPlatformAccount({
+    institution,
+    employee,
+    email: accountEmail,
+    password: payload.password,
+  }).credentials;
+
+  institution.updatedAt = new Date().toISOString();
+
+  return response.status(201).json({
+    message: 'Platform account created successfully.',
+    createdAccount,
+    item: buildInstitutionManagementItem(institution),
   });
 });
 

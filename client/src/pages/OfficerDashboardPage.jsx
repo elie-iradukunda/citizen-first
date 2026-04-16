@@ -12,6 +12,12 @@ import {
   fetchOfficerExplorer,
   submitOfficerComplaintResponse,
 } from '../lib/dashboardApi';
+import {
+  createInstitutionStaffAccount,
+  createInstitutionStaffMember,
+  fetchInstitutionManagement,
+  updateInstitutionManagement,
+} from '../lib/registrationApi';
 import { formatDateTime } from '../lib/time';
 
 const WORKSPACE_TABS = [
@@ -19,6 +25,7 @@ const WORKSPACE_TABS = [
   { id: 'cases', label: 'Case Queue', detail: 'Citizen complaints and escalations' },
   { id: 'territory', label: 'Territory', detail: 'Explorer and scope coverage' },
   { id: 'team', label: 'Team Watch', detail: 'Notifications and workload' },
+  { id: 'institution-admin', label: 'Institution Admin', detail: 'Services, staff, and platform access' },
 ];
 
 const CASE_VIEW_CONFIG = {
@@ -49,6 +56,8 @@ const PAGE_SIZES = {
   institutions: 4,
   taggedIssues: 4,
   notifications: 4,
+  institutionServices: 4,
+  institutionStaff: 4,
 };
 
 const INITIAL_PAGES = {
@@ -60,7 +69,35 @@ const INITIAL_PAGES = {
   institutions: 1,
   taggedIssues: 1,
   notifications: 1,
+  institutionServices: 1,
+  institutionStaff: 1,
 };
+
+function createEmptyInstitutionForm() {
+  return {
+    institutionType: '',
+    officialEmail: '',
+    officialPhone: '',
+    officeAddress: '',
+    services: [],
+  };
+}
+
+function createEmptyStaffDraft() {
+  return {
+    fullName: '',
+    nationalId: '',
+    phone: '',
+    email: '',
+    password: '',
+    positionTitle: '',
+    positionKinyarwanda: '',
+    reportsTo: '',
+    description: '',
+    status: 'Active',
+    createPlatformAccount: true,
+  };
+}
 
 function resetFilterChildren(filters, field) {
   if (field === 'province') {
@@ -177,6 +214,18 @@ function OfficerDashboardPage() {
   const [respondingComplaintId, setRespondingComplaintId] = useState('');
   const [responseError, setResponseError] = useState('');
   const [responseSuccess, setResponseSuccess] = useState('');
+  const [institutionAdmin, setInstitutionAdmin] = useState(null);
+  const [institutionAdminLoading, setInstitutionAdminLoading] = useState(true);
+  const [institutionAdminError, setInstitutionAdminError] = useState('');
+  const [institutionForm, setInstitutionForm] = useState(createEmptyInstitutionForm);
+  const [serviceDraft, setServiceDraft] = useState({ name: '', description: '' });
+  const [staffDraft, setStaffDraft] = useState(createEmptyStaffDraft);
+  const [accountDrafts, setAccountDrafts] = useState({});
+  const [institutionSaveError, setInstitutionSaveError] = useState('');
+  const [institutionSaveSuccess, setInstitutionSaveSuccess] = useState('');
+  const [isSavingInstitution, setIsSavingInstitution] = useState(false);
+  const [isCreatingStaff, setIsCreatingStaff] = useState(false);
+  const [creatingAccountEmployeeId, setCreatingAccountEmployeeId] = useState('');
 
   useEffect(() => {
     let isActive = true;
@@ -258,6 +307,53 @@ function OfficerDashboardPage() {
       isActive = false;
     };
   }, [hasInitializedFilters, filters]);
+
+  useEffect(() => {
+    const institutionId = dashboard?.institutionManagement?.institutionId;
+    const hasInstitutionRecord = dashboard?.institutionManagement?.hasInstitutionRecord;
+
+    if (!institutionId || !hasInstitutionRecord) {
+      setInstitutionAdmin(null);
+      setInstitutionAdminLoading(false);
+      return undefined;
+    }
+
+    let isActive = true;
+    setInstitutionAdminLoading(true);
+    setInstitutionAdminError('');
+
+    fetchInstitutionManagement(institutionId)
+      .then((payload) => {
+        if (!isActive) {
+          return;
+        }
+
+        const item = payload.item ?? null;
+        setInstitutionAdmin(item);
+        setInstitutionForm({
+          institutionType: item?.institutionType ?? '',
+          officialEmail: item?.officialEmail ?? '',
+          officialPhone: item?.officialPhone ?? '',
+          officeAddress: item?.officeAddress ?? '',
+          services: item?.services ?? [],
+        });
+      })
+      .catch((error) => {
+        if (isActive) {
+          setInstitutionAdmin(null);
+          setInstitutionAdminError(error.message);
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setInstitutionAdminLoading(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [dashboard?.institutionManagement?.hasInstitutionRecord, dashboard?.institutionManagement?.institutionId]);
 
   if (isLoading) {
     return (
@@ -358,6 +454,16 @@ function OfficerDashboardPage() {
     pages.notifications,
     PAGE_SIZES.notifications,
   );
+  const institutionServicesPagination = paginateItems(
+    institutionForm.services ?? [],
+    pages.institutionServices,
+    PAGE_SIZES.institutionServices,
+  );
+  const institutionStaffPagination = paginateItems(
+    institutionAdmin?.employees ?? [],
+    pages.institutionStaff,
+    PAGE_SIZES.institutionStaff,
+  );
   const caseStatusCounts = {
     queue: dashboard.queue?.length ?? 0,
     overdue: (dashboard.queue ?? []).filter(isOverdueCase).length,
@@ -407,6 +513,134 @@ function OfficerDashboardPage() {
       queue: 1,
       escalations: 1,
     }));
+  };
+
+  const replaceInstitutionAdminState = (item) => {
+    setInstitutionAdmin(item);
+    setInstitutionForm({
+      institutionType: item?.institutionType ?? '',
+      officialEmail: item?.officialEmail ?? '',
+      officialPhone: item?.officialPhone ?? '',
+      officeAddress: item?.officeAddress ?? '',
+      services: item?.services ?? [],
+    });
+  };
+
+  const updateInstitutionField = (field, value) => {
+    setInstitutionForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const addServiceDraft = () => {
+    const name = serviceDraft.name.trim();
+    const description = serviceDraft.description.trim();
+    if (!name) {
+      return;
+    }
+
+    setInstitutionForm((current) => {
+      const alreadyExists = current.services.some(
+        (item) => item.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (alreadyExists) {
+        return current;
+      }
+
+      return {
+        ...current,
+        services: [...current.services, { name, description }],
+      };
+    });
+    setServiceDraft({ name: '', description: '' });
+    setPages((current) => ({ ...current, institutionServices: 1 }));
+  };
+
+  const removeInstitutionService = (name) => {
+    setInstitutionForm((current) => ({
+      ...current,
+      services: current.services.filter((item) => item.name !== name),
+    }));
+  };
+
+  const saveInstitutionProfile = async () => {
+    if (!institutionAdmin?.institutionId) {
+      return;
+    }
+
+    setInstitutionSaveError('');
+    setInstitutionSaveSuccess('');
+    setIsSavingInstitution(true);
+
+    try {
+      const result = await updateInstitutionManagement(institutionAdmin.institutionId, {
+        institutionType: institutionForm.institutionType,
+        officialEmail: institutionForm.officialEmail,
+        officialPhone: institutionForm.officialPhone,
+        officeAddress: institutionForm.officeAddress,
+        services: institutionForm.services,
+      });
+      replaceInstitutionAdminState(result.item ?? null);
+      setInstitutionSaveSuccess(result.message);
+    } catch (error) {
+      setInstitutionSaveError(error.message);
+    } finally {
+      setIsSavingInstitution(false);
+    }
+  };
+
+  const createStaffMember = async () => {
+    if (!institutionAdmin?.institutionId) {
+      return;
+    }
+
+    setInstitutionSaveError('');
+    setInstitutionSaveSuccess('');
+    setIsCreatingStaff(true);
+
+    try {
+      const result = await createInstitutionStaffMember(institutionAdmin.institutionId, staffDraft);
+      replaceInstitutionAdminState(result.item ?? null);
+      setStaffDraft(createEmptyStaffDraft());
+      setPages((current) => ({ ...current, institutionStaff: 1 }));
+      setInstitutionSaveSuccess(
+        result.createdAccount
+          ? `${result.message} Access key: ${result.createdAccount.accessKey}`
+          : result.message,
+      );
+    } catch (error) {
+      setInstitutionSaveError(error.message);
+    } finally {
+      setIsCreatingStaff(false);
+    }
+  };
+
+  const createExistingStaffAccount = async (employeeId) => {
+    if (!institutionAdmin?.institutionId) {
+      return;
+    }
+
+    const draft = accountDrafts[employeeId] ?? { email: '', password: '' };
+    setInstitutionSaveError('');
+    setInstitutionSaveSuccess('');
+    setCreatingAccountEmployeeId(employeeId);
+
+    try {
+      const result = await createInstitutionStaffAccount(institutionAdmin.institutionId, employeeId, draft);
+      replaceInstitutionAdminState(result.item ?? null);
+      setAccountDrafts((current) => ({
+        ...current,
+        [employeeId]: { email: '', password: '' },
+      }));
+      setInstitutionSaveSuccess(
+        `${result.message} Access key: ${result.createdAccount?.accessKey ?? 'generated'}`,
+      );
+    } catch (error) {
+      setInstitutionSaveError(error.message);
+    } finally {
+      setCreatingAccountEmployeeId('');
+    }
   };
 
   const submitResponse = async (complaintId) => {
@@ -744,6 +978,446 @@ function OfficerDashboardPage() {
               </article>
             )}
           </SectionCard>
+        </div>
+        ) : null}
+
+        {activeWorkspace === 'institution-admin' ? (
+        <div className="mt-8 grid gap-6">
+          {!institutionManagement.hasInstitutionRecord ? (
+            <SectionCard
+              title="Institution admin unavailable"
+              subtitle="Complete institution registration first so this dashboard can manage services, staff, and access."
+            >
+              <article className="rounded-2xl bg-gold/25 px-4 py-4 text-sm font-semibold text-ink">
+                This account is not yet linked to a registered institution record.
+              </article>
+            </SectionCard>
+          ) : institutionAdminLoading ? (
+            <SectionCard
+              title="Loading institution admin"
+              subtitle="Preparing service catalog, staff directory, and access control."
+            >
+              <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
+                Loading institution management data...
+              </article>
+            </SectionCard>
+          ) : institutionAdminError ? (
+            <SectionCard
+              title="Institution admin unavailable"
+              subtitle="The management endpoint did not respond for this institution."
+            >
+              <article className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-4 text-sm font-semibold text-clay">
+                {institutionAdminError}
+              </article>
+            </SectionCard>
+          ) : (
+            <>
+              {institutionSaveError ? (
+                <div className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-4 text-sm font-semibold text-clay">
+                  {institutionSaveError}
+                </div>
+              ) : null}
+              {institutionSaveSuccess ? (
+                <div className="rounded-2xl border border-pine/20 bg-pine/10 px-4 py-4 text-sm font-semibold text-ink">
+                  {institutionSaveSuccess}
+                </div>
+              ) : null}
+
+              <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                <SectionCard
+                  title="Institution profile"
+                  subtitle="Keep service office details current so citizens and other leaders see accurate information."
+                  headerAction={
+                    <button
+                      type="button"
+                      onClick={saveInstitutionProfile}
+                      disabled={isSavingInstitution}
+                      className="rounded-full bg-ink px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-white disabled:opacity-70"
+                    >
+                      {isSavingInstitution ? 'Saving...' : 'Save profile'}
+                    </button>
+                  }
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Institution type</span>
+                      <input
+                        value={institutionForm.institutionType}
+                        onChange={(event) => updateInstitutionField('institutionType', event.target.value)}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Official email</span>
+                      <input
+                        type="email"
+                        value={institutionForm.officialEmail}
+                        onChange={(event) => updateInstitutionField('officialEmail', event.target.value)}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Official phone</span>
+                      <input
+                        value={institutionForm.officialPhone}
+                        onChange={(event) => updateInstitutionField('officialPhone', event.target.value)}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Institution slug</span>
+                      <input
+                        value={institutionAdmin?.slug ?? ''}
+                        disabled
+                        className="w-full rounded-xl border border-ink/10 bg-white px-3 py-2 text-sm text-slate"
+                      />
+                    </label>
+                  </div>
+                  <label className="mt-4 block space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Office address</span>
+                    <textarea
+                      rows={3}
+                      value={institutionForm.officeAddress}
+                      onChange={(event) => updateInstitutionField('officeAddress', event.target.value)}
+                      className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                    />
+                  </label>
+                </SectionCard>
+
+                <SectionCard
+                  title="Access and hierarchy"
+                  subtitle="A quick view of what this institution already manages on the platform."
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Primary leader</p>
+                      <p className="mt-1 font-semibold text-ink">
+                        {institutionManagement.leader?.fullName ?? 'Not linked'}
+                      </p>
+                      <p className="mt-1">
+                        {institutionManagement.leader?.positionTitle ?? 'No role title available'}
+                      </p>
+                    </article>
+                    <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Registered staff</p>
+                      <p className="mt-1 text-2xl font-black text-ink">{institutionAdmin?.employeeCount ?? 0}</p>
+                    </article>
+                    <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Departments</p>
+                      <p className="mt-1 text-2xl font-black text-ink">{institutionAdmin?.departments?.length ?? 0}</p>
+                    </article>
+                    <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Child units</p>
+                      <p className="mt-1 text-2xl font-black text-ink">{institutionAdmin?.children?.length ?? 0}</p>
+                    </article>
+                  </div>
+
+                  {institutionAdmin?.departments?.length ? (
+                    <div className="mt-4 space-y-3">
+                      {institutionAdmin.departments.slice(0, 4).map((department) => (
+                        <article key={department.departmentId} className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
+                          <p className="font-semibold text-ink">{department.name}</p>
+                          {department.description ? <p className="mt-1">{department.description}</p> : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <article className="mt-4 rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
+                      No department records have been added for this institution yet.
+                    </article>
+                  )}
+                </SectionCard>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                <SectionCard title="Service catalog" subtitle="Publish the services this institution offers so citizens see the right options.">
+                  <div className="grid gap-3 md:grid-cols-[0.42fr_0.58fr_auto]">
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Service name</span>
+                      <input
+                        value={serviceDraft.name}
+                        onChange={(event) => setServiceDraft((current) => ({ ...current, name: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                        placeholder="Example: Complaint intake"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Description</span>
+                      <input
+                        value={serviceDraft.description}
+                        onChange={(event) =>
+                          setServiceDraft((current) => ({ ...current, description: event.target.value }))
+                        }
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                        placeholder="What citizens should expect from this service"
+                      />
+                    </label>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={addServiceDraft}
+                        className="w-full rounded-full bg-ink px-4 py-2 text-sm font-bold text-white"
+                      >
+                        Add service
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {institutionServicesPagination.items.length > 0 ? (
+                      institutionServicesPagination.items.map((service) => (
+                        <article key={service.name} className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-ink">{service.name}</p>
+                              {service.description ? <p className="mt-1">{service.description}</p> : null}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeInstitutionService(service.name)}
+                              className="rounded-full border border-ink/15 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-ink"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
+                        No service records are published yet for this institution.
+                      </article>
+                    )}
+                  </div>
+                  <PaginationControls
+                    currentPage={institutionServicesPagination.currentPage}
+                    totalPages={institutionServicesPagination.totalPages}
+                    onChange={(value) => updatePage('institutionServices', value)}
+                  />
+                </SectionCard>
+
+                <SectionCard
+                  title="Publish QR access"
+                  subtitle="Citizens can scan one code to read institution information or continue to issue reporting."
+                >
+                  {institutionAdmin?.slug ? (
+                    <InstitutionAccessQrPanel
+                      institutionSlug={institutionAdmin.slug}
+                      institutionName={institutionAdmin.institutionName}
+                    />
+                  ) : (
+                    <article className="rounded-2xl bg-gold/25 px-4 py-4 text-sm font-semibold text-ink">
+                      This institution does not have a public access slug yet.
+                    </article>
+                  )}
+                </SectionCard>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                <SectionCard title="Add staff or leaders" subtitle="Register new institution team members and optionally create login access immediately.">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Full name</span>
+                      <input
+                        value={staffDraft.fullName}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, fullName: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">National ID</span>
+                      <input
+                        value={staffDraft.nationalId}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, nationalId: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Phone</span>
+                      <input
+                        value={staffDraft.phone}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, phone: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Email</span>
+                      <input
+                        type="email"
+                        value={staffDraft.email}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, email: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Position title</span>
+                      <input
+                        value={staffDraft.positionTitle}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, positionTitle: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Reports to</span>
+                      <input
+                        value={staffDraft.reportsTo}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, reportsTo: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                        placeholder={institutionManagement.leader?.positionTitle ?? 'Primary institution leader'}
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Kinyarwanda title</span>
+                      <input
+                        value={staffDraft.positionKinyarwanda}
+                        onChange={(event) =>
+                          setStaffDraft((current) => ({ ...current, positionKinyarwanda: event.target.value }))
+                        }
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Temporary password</span>
+                      <input
+                        type="password"
+                        value={staffDraft.password}
+                        onChange={(event) => setStaffDraft((current) => ({ ...current, password: event.target.value }))}
+                        className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                        placeholder="Required when platform access is enabled"
+                      />
+                    </label>
+                  </div>
+                  <label className="mt-4 block space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Description</span>
+                    <textarea
+                      rows={3}
+                      value={staffDraft.description}
+                      onChange={(event) => setStaffDraft((current) => ({ ...current, description: event.target.value }))}
+                      className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                    />
+                  </label>
+                  <div className="mt-4 flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      <input
+                        type="checkbox"
+                        checked={staffDraft.createPlatformAccount}
+                        onChange={(event) =>
+                          setStaffDraft((current) => ({
+                            ...current,
+                            createPlatformAccount: event.target.checked,
+                          }))
+                        }
+                      />
+                      Create platform login for this staff member
+                    </label>
+                    <button
+                      type="button"
+                      onClick={createStaffMember}
+                      disabled={isCreatingStaff}
+                      className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-70"
+                    >
+                      {isCreatingStaff ? 'Creating...' : 'Add team member'}
+                    </button>
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Current staff and account access" subtitle="Review who is already listed in the institution and who can sign in to work cases.">
+                  <div className="space-y-3">
+                    {institutionStaffPagination.items.length > 0 ? (
+                      institutionStaffPagination.items.map((employee) => (
+                        <article key={employee.employeeId} className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-ink">
+                                {employee.fullName}
+                                {employee.isLeader ? ' | Primary leader' : ''}
+                              </p>
+                              <p className="mt-1">
+                                {employee.positionTitle}
+                                {employee.positionKinyarwanda ? ` | ${employee.positionKinyarwanda}` : ''}
+                              </p>
+                              <p className="mt-1">{employee.phone} | {employee.email || 'No email yet'}</p>
+                              {employee.reportsTo ? <p className="mt-1">Reports to: {employee.reportsTo}</p> : null}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <StatusBadge value={employee.status} />
+                              <StatusBadge value={employee.hasPlatformAccount ? 'platform access' : 'no account'} />
+                            </div>
+                          </div>
+
+                          {employee.description ? (
+                            <p className="mt-3 rounded-xl bg-white px-3 py-2 leading-6">{employee.description}</p>
+                          ) : null}
+
+                          {employee.account ? (
+                            <div className="mt-3 rounded-xl border border-pine/20 bg-pine/10 px-3 py-3 text-sm text-slate">
+                              <p className="font-semibold text-ink">Platform access ready</p>
+                              <p className="mt-1">
+                                {employee.account.role} | {employee.account.email || 'No email'}
+                              </p>
+                              <p className="mt-1">Status: {employee.account.status}</p>
+                            </div>
+                          ) : (
+                            <div className="mt-3 rounded-xl border border-ink/10 bg-white p-4">
+                              <p className="text-sm font-semibold text-ink">Create platform account</p>
+                              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                                <input
+                                  type="email"
+                                  value={accountDrafts[employee.employeeId]?.email ?? employee.email ?? ''}
+                                  onChange={(event) =>
+                                    setAccountDrafts((current) => ({
+                                      ...current,
+                                      [employee.employeeId]: {
+                                        email: event.target.value,
+                                        password: current[employee.employeeId]?.password ?? '',
+                                      },
+                                    }))
+                                  }
+                                  className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                                  placeholder="Email for login"
+                                />
+                                <input
+                                  type="password"
+                                  value={accountDrafts[employee.employeeId]?.password ?? ''}
+                                  onChange={(event) =>
+                                    setAccountDrafts((current) => ({
+                                      ...current,
+                                      [employee.employeeId]: {
+                                        email: current[employee.employeeId]?.email ?? employee.email ?? '',
+                                        password: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
+                                  placeholder="Temporary password"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => createExistingStaffAccount(employee.employeeId)}
+                                  disabled={creatingAccountEmployeeId === employee.employeeId}
+                                  className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-70"
+                                >
+                                  {creatingAccountEmployeeId === employee.employeeId ? 'Creating...' : 'Create login'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </article>
+                      ))
+                    ) : (
+                      <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
+                        No staff members have been recorded for this institution yet.
+                      </article>
+                    )}
+                  </div>
+                  <PaginationControls
+                    currentPage={institutionStaffPagination.currentPage}
+                    totalPages={institutionStaffPagination.totalPages}
+                    onChange={(value) => updatePage('institutionStaff', value)}
+                  />
+                </SectionCard>
+              </div>
+            </>
+          )}
         </div>
         ) : null}
 

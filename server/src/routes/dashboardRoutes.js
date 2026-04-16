@@ -364,23 +364,24 @@ function matchesUserScope(user, location = {}) {
   }
 
   const userLocation = user.location ?? {};
-  if (user.role === 'province_leader') {
+  const resolvedLevel = resolveUserLevel(user);
+  if (user.role === 'province_leader' || (user.role === 'institution_officer' && resolvedLevel === 'province')) {
     return location.province === userLocation.province;
   }
-  if (user.role === 'district_leader' || user.role === 'institution_officer') {
+  if (user.role === 'district_leader' || (user.role === 'institution_officer' && resolvedLevel === 'district')) {
     return (
       location.province === userLocation.province &&
       location.district === userLocation.district
     );
   }
-  if (user.role === 'sector_leader') {
+  if (user.role === 'sector_leader' || (user.role === 'institution_officer' && resolvedLevel === 'sector')) {
     return (
       location.province === userLocation.province &&
       location.district === userLocation.district &&
       location.sector === userLocation.sector
     );
   }
-  if (user.role === 'cell_leader') {
+  if (user.role === 'cell_leader' || (user.role === 'institution_officer' && resolvedLevel === 'cell')) {
     return (
       location.province === userLocation.province &&
       location.district === userLocation.district &&
@@ -388,7 +389,7 @@ function matchesUserScope(user, location = {}) {
       location.cell === userLocation.cell
     );
   }
-  if (user.role === 'village_leader') {
+  if (user.role === 'village_leader' || (user.role === 'institution_officer' && resolvedLevel === 'village')) {
     return (
       location.province === userLocation.province &&
       location.district === userLocation.district &&
@@ -727,7 +728,20 @@ function buildCitizenReporterProfile(user) {
   };
 }
 
-function findLeaderEmployeeByUser(user) {
+function findInstitutionEmployeeByUser(user) {
+  if (!user) {
+    return null;
+  }
+
+  if (user.employeeId) {
+    const linkedEmployee = institutionEmployees.find(
+      (entry) => entry.employeeId === user.employeeId && entry.institutionId === user.institutionId,
+    );
+    if (linkedEmployee) {
+      return linkedEmployee;
+    }
+  }
+
   if (!user?.nationalId) {
     return null;
   }
@@ -735,11 +749,15 @@ function findLeaderEmployeeByUser(user) {
   return (
     institutionEmployees.find(
       (entry) =>
-        entry.isLeader === true &&
         entry.nationalId === user.nationalId &&
         entry.institutionId === user.institutionId,
     ) ?? null
   );
+}
+
+function findLeaderEmployeeByUser(user) {
+  const employee = findInstitutionEmployeeByUser(user);
+  return employee?.isLeader === true ? employee : null;
 }
 
 function findLeaderUserByEmployeeId(employeeId) {
@@ -1565,8 +1583,8 @@ function canUserRespondToComplaint(user, complaint) {
     return complaint.assignedOfficerId === user.userId;
   }
 
-  const currentLeaderEmployee = findLeaderEmployeeByUser(user);
-  if (currentLeaderEmployee?.employeeId && complaint.assignedOfficerId === currentLeaderEmployee.employeeId) {
+  const currentEmployee = findInstitutionEmployeeByUser(user);
+  if (currentEmployee?.employeeId && complaint.assignedOfficerId === currentEmployee.employeeId) {
     return true;
   }
 
@@ -1588,14 +1606,15 @@ function buildOfficerDashboard(user) {
     .sort((a, b) => new Date(a.deadlineAt) - new Date(b.deadlineAt));
   const level = resolveUserLevel(user);
   const scopedLevels = new Set(getScopeLevels(level));
-  const currentLeaderEmployee = findLeaderEmployeeByUser(user);
+  const currentEmployee = findInstitutionEmployeeByUser(user);
+  const currentLeaderEmployee = currentEmployee?.isLeader === true ? currentEmployee : null;
   const scopedQueueRaw = openQueue.filter((item) => {
     const withinLevel = scopedLevels.has(item.currentLevel);
     if (!withinLevel) {
       return false;
     }
 
-    if (currentLeaderEmployee?.employeeId && item.assignedOfficerId === currentLeaderEmployee.employeeId) {
+    if (currentEmployee?.employeeId && item.assignedOfficerId === currentEmployee.employeeId) {
       return true;
     }
 
@@ -1653,12 +1672,12 @@ function buildOfficerDashboard(user) {
   const managerProfile = buildManagerProfile(user, scopedQueue.length, escalations.length);
   const institutionManagement = buildInstitutionManagementSummary(user);
   const taggedIssues =
-    currentLeaderEmployee
+    currentEmployee
       ? complaints
           .filter((item) =>
-            item.assignedOfficerId === currentLeaderEmployee.employeeId ||
+            item.assignedOfficerId === currentEmployee.employeeId ||
             (Array.isArray(item.taggedLeaderEmployeeIds)
-              ? item.taggedLeaderEmployeeIds.includes(currentLeaderEmployee.employeeId)
+              ? item.taggedLeaderEmployeeIds.includes(currentEmployee.employeeId)
               : false),
           )
           .sort((left, right) => new Date(right.submittedAt) - new Date(left.submittedAt))
@@ -2576,7 +2595,7 @@ router.post('/officer/complaints/:complaintId/respond', (request, response) => {
     });
   }
 
-  const responderEmployee = findLeaderEmployeeByUser(request.auth.user);
+  const responderEmployee = findInstitutionEmployeeByUser(request.auth.user);
   const responderId = responderEmployee?.employeeId ?? request.auth.user.userId;
   const responderName = responderEmployee?.fullName ?? request.auth.user.fullName ?? 'Assigned officer';
   const now = new Date();
