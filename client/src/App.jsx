@@ -17,6 +17,12 @@ import OfficerDashboardPage from './pages/OfficerDashboardPage';
 import PublicServicesPage from './pages/PublicServicesPage';
 import ReportPage from './pages/ReportPage';
 import TrackPage from './pages/TrackPage';
+import {
+  ADMIN_DASHBOARD_ROLES,
+  CITIZEN_DASHBOARD_ROLES,
+  INVITE_ROLES,
+  OFFICER_DASHBOARD_ROLES,
+} from './lib/authRouting';
 
 function App() {
   return (
@@ -37,14 +43,26 @@ function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
-          <Route path="/register/invite" element={<InstitutionInvitePage />} />
           <Route path="/dashboards" element={<DashboardHubPage />} />
-          <Route path="/dashboard/citizen" element={<CitizenDashboardPage mode="overview" />} />
-          <Route path="/dashboard/citizen/submit" element={<CitizenDashboardPage mode="submit" />} />
-          <Route path="/dashboard/citizen/services" element={<CitizenDashboardPage mode="services" />} />
-          <Route path="/dashboard/citizen/leaders" element={<CitizenDashboardPage mode="leaders" />} />
-          <Route path="/dashboard/officer" element={<OfficerDashboardPage />} />
-          <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
+
+          <Route element={<ProtectedRoute allowedRoles={[...INVITE_ROLES]} />}>
+            <Route path="/register/invite" element={<InstitutionInvitePage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[...CITIZEN_DASHBOARD_ROLES]} />}>
+            <Route path="/dashboard/citizen" element={<CitizenDashboardPage mode="overview" />} />
+            <Route path="/dashboard/citizen/submit" element={<CitizenDashboardPage mode="submit" />} />
+            <Route path="/dashboard/citizen/services" element={<CitizenDashboardPage mode="services" />} />
+            <Route path="/dashboard/citizen/leaders" element={<CitizenDashboardPage mode="leaders" />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[...OFFICER_DASHBOARD_ROLES]} />}>
+            <Route path="/dashboard/officer" element={<OfficerDashboardPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[...ADMIN_DASHBOARD_ROLES]} />}>
+            <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
+          </Route>
         </Route>
       </Route>
     </Routes>

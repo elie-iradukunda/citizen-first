@@ -1,9 +1,10 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getRoleDashboardPath } from '../../lib/authRouting';
 import DashboardState from '../dashboard/DashboardState';
 
-function ProtectedRoute() {
-  const { isAuthenticated, isChecking } = useAuth();
+function ProtectedRoute({ allowedRoles }) {
+  const { isAuthenticated, isChecking, user } = useAuth();
   const location = useLocation();
 
   if (isChecking) {
@@ -20,6 +21,10 @@ function ProtectedRoute() {
   if (!isAuthenticated) {
     const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
+  }
+
+  if (Array.isArray(allowedRoles) && !allowedRoles.includes(user?.role)) {
+    return <Navigate to={getRoleDashboardPath(user?.role)} replace />;
   }
 
   return <Outlet />;

@@ -277,6 +277,7 @@ export const systemUsers = [
     fullName: 'Citizen Demo User',
     email: DASHBOARD_CITIZEN_EMAIL,
     nationalId: '1199111199997777',
+    phone: '+250788700001',
     institutionId: null,
     accessKey: DEFAULT_DASHBOARD_CITIZEN_KEY,
     status: 'active',
@@ -301,7 +302,28 @@ export const institutionDepartments = [];
 
 export const institutionEmployees = [];
 
-export const registeredCitizens = [];
+export const registeredCitizens = [
+  {
+    citizenId: 'CIT-2026-00001',
+    fullName: 'Citizen Demo User',
+    nationalId: '1199111199997777',
+    phone: '+250788700001',
+    email: DASHBOARD_CITIZEN_EMAIL,
+    dateOfBirth: '1999-06-14',
+    gender: 'Female',
+    idType: 'National ID',
+    location: {
+      country: 'Rwanda',
+      province: 'Kigali City',
+      district: 'Kicukiro',
+      sector: 'Kagarama',
+      cell: 'Kanserege',
+      village: 'Amahoro',
+    },
+    createdAt: '2026-04-03T00:00:00.000Z',
+    status: 'active',
+  },
+];
 
 export const staffTemplateExamples = [
   {

@@ -1527,6 +1527,7 @@ router.post('/citizens', (request, response) => {
     fullName: payload.fullName,
     email: normalizeEmail(payload.email),
     nationalId: payload.nationalId,
+    phone: payload.phone,
     institutionId: null,
     accessKey: citizenAccessKey,
     status: 'active',

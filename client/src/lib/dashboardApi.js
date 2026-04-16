@@ -1,21 +1,41 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
 const AUTH_TOKEN_KEY = 'cf_auth_token';
 
-async function request(path) {
+function getAuthHeaders(withJson = false) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+  return {
+    ...(withJson ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function request(path) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: token
-      ? {
-          Authorization: `Bearer ${token}`,
-        }
-      : undefined,
+    headers: getAuthHeaders(),
   });
 
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    throw new Error(data?.message ?? `Request failed with status ${response.status}`);
   }
 
-  return response.json();
+  return data;
+}
+
+async function postJson(path, payload = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message ?? `Request failed with status ${response.status}`);
+  }
+
+  return data;
 }
 
 export function fetchDashboardOverview() {
@@ -28,7 +48,7 @@ export function fetchCitizenDashboard() {
 
 export function fetchCitizenContext(filters = {}) {
   const params = new URLSearchParams();
-  const keys = ['province', 'district', 'sector', 'cell', 'village'];
+  const keys = ['province', 'district', 'sector', 'cell', 'village', 'institution'];
   keys.forEach((key) => {
     const value = filters[key];
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -41,22 +61,15 @@ export function fetchCitizenContext(filters = {}) {
 }
 
 export async function submitCitizenComplaint(payload) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const response = await fetch(`${API_BASE_URL}/api/dashboard/citizen/complaints`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
+  return postJson('/api/dashboard/citizen/complaints', payload);
+}
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.message ?? `Request failed with status ${response.status}`);
-  }
+export function acceptCitizenFeedback(complaintId, payload = {}) {
+  return postJson(`/api/dashboard/citizen/complaints/${complaintId}/accept-feedback`, payload);
+}
 
-  return data;
+export function escalateCitizenComplaint(complaintId, payload = {}) {
+  return postJson(`/api/dashboard/citizen/complaints/${complaintId}/escalate`, payload);
 }
 
 export function fetchOfficerDashboard() {
@@ -80,4 +93,8 @@ export function fetchOfficerExplorer(filters = {}) {
 
 export function fetchAdminDashboard() {
   return request('/api/dashboard/admin');
+}
+
+export function submitOfficerComplaintResponse(complaintId, payload) {
+  return postJson(`/api/dashboard/officer/complaints/${complaintId}/respond`, payload);
 }

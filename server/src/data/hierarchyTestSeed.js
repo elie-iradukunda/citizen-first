@@ -428,6 +428,12 @@ function buildServiceCatalog(level, institutionName) {
   return SERVICE_BLUEPRINTS.map((entry, index) => ({
     name: `${levelLabel} ${index + 1}: ${entry.name}`,
     description: `${entry.description} (${institutionName})`,
+    feeType: index % 3 === 0 ? 'paid' : 'free',
+    officialFeeRwf: index % 3 === 0 ? (index + 1) * 1000 : 0,
+    accessNote:
+      index % 3 === 0
+        ? 'Official fee must be receipted before service completion.'
+        : 'No official payment required for this service.',
   }));
 }
 
