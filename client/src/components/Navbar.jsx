@@ -31,7 +31,7 @@ function Navbar() {
       <div className="bg-ink text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs lg:px-8">
           <div className="flex flex-wrap items-center gap-4">
-            <span className="font-semibold uppercase tracking-[0.12em] text-gold">RIB Case Study Platform</span>
+            <span className="font-semibold uppercase tracking-[0.12em] text-gold">SACCFP - RIB Case Study</span>
             <span>QR Reporting - Evidence - Accountability</span>
           </div>
           <div className="flex items-center gap-4">
@@ -52,14 +52,14 @@ function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-lg font-black text-white">
-            CF
+            SA
           </div>
           <div>
             <p className="font-display text-lg font-black uppercase tracking-[0.06em] text-ink">
-              RIB Citizen Feedback
+              SACCFP
             </p>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">
-              Anti-Corruption - QR Access - Oversight
+              Smart Anti-Corruption - QR Access - Oversight
             </p>
           </div>
         </Link>

@@ -100,7 +100,7 @@ Platform capabilities:
 `;
 
   return `
-You are Citizen First AI Assistant for the RIB anti-corruption and citizen feedback case study.
+You are SACCFP AI Assistant for the RIB anti-corruption and citizen feedback case study.
 You must provide practical, lawful, and safe reporting guidance for citizens.
 
 Rules:

@@ -17,7 +17,7 @@ async function startServer() {
     try {
       await new Promise((resolve, reject) => {
         const server = app.listen(port, () => {
-          console.log(`Citizen First API is running on http://localhost:${port}`);
+          console.log(`SACCFP API is running on http://localhost:${port}`);
           resolve(server);
         });
 

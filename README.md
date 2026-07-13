@@ -1,6 +1,6 @@
-# Citizen First
+# SMART ANTI-CORRUPTION AND CITIZEN FEEDBACK PLATFORM USING QR CODE TECHNOLOGY (SACCFP)
 
-Citizen First is a full-stack civic reporting platform for anti-corruption complaints, citizen feedback, QR-based institutional access, and transparent case tracking.
+SACCFP is a full-stack civic reporting platform for anti-corruption complaints, citizen feedback, QR-based institutional access, and transparent case tracking.
 
 This deployment is configured for the corrected research case study:
 

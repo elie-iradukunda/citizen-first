@@ -9,7 +9,7 @@ function AssistantPage() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: 'Muraho. I am Citizen First AI Assistant for the RIB case study. Ask me how to report corruption, preserve evidence, track a case, or request escalation.',
+      text: 'Muraho. I am SACCFP AI Assistant for the RIB case study. Ask me how to report corruption, preserve evidence, track a case, or request escalation.',
     },
   ]);
   const [isAsking, setIsAsking] = useState(false);
@@ -130,7 +130,7 @@ function AssistantPage() {
                   {message.role === 'assistant' ? (
                     <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-tide">
                       <SparklesIcon className="h-4 w-4" />
-                      Citizen First AI
+                      SACCFP AI
                     </p>
                   ) : null}
                   <p className="whitespace-pre-line">{message.text}</p>

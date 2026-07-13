@@ -35,6 +35,57 @@ function readSyncConfig() {
   };
 }
 
+function getModelTableName(model) {
+  const tableName = model.getTableName();
+  return typeof tableName === 'string' ? tableName : tableName.tableName;
+}
+
+function buildCompatibleColumnDefinition(attribute) {
+  const definition = {
+    type: attribute.type,
+    allowNull: true,
+  };
+
+  if (attribute.defaultValue !== undefined) {
+    definition.defaultValue = attribute.defaultValue;
+  }
+
+  return definition;
+}
+
+async function ensureExistingTableColumns(connection) {
+  const queryInterface = connection.getQueryInterface();
+
+  for (const model of Object.values(connection.models)) {
+    const tableName = getModelTableName(model);
+    let existingColumns;
+
+    try {
+      existingColumns = await queryInterface.describeTable(tableName);
+    } catch (error) {
+      if (error?.original?.code === 'ER_NO_SUCH_TABLE' || error?.parent?.code === 'ER_NO_SUCH_TABLE') {
+        continue;
+      }
+
+      throw error;
+    }
+
+    for (const attribute of Object.values(model.rawAttributes)) {
+      const columnName = attribute.field || attribute.fieldName;
+
+      if (!columnName || existingColumns[columnName] || attribute.primaryKey) {
+        continue;
+      }
+
+      await queryInterface.addColumn(
+        tableName,
+        columnName,
+        buildCompatibleColumnDefinition(attribute),
+      );
+    }
+  }
+}
+
 async function ensureDatabaseExists() {
   const databaseConfig = readDatabaseConfig();
 
@@ -86,6 +137,7 @@ export async function initializeDatabase() {
 
   const connection = getDatabaseConnection();
   await connection.authenticate();
+  await ensureExistingTableColumns(connection);
   await connection.sync(readSyncConfig());
 
   isInitialized = true;

@@ -5,7 +5,7 @@ function Footer() {
     <footer className="mt-12 bg-ink text-white">
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1.25fr_1fr_1fr] lg:px-8">
         <div>
-          <p className="font-display text-2xl font-black uppercase tracking-[0.06em]">RIB Case Study Platform</p>
+          <p className="font-display text-2xl font-black uppercase tracking-[0.06em]">SACCFP</p>
           <p className="mt-4 max-w-md text-sm leading-7 text-white/80">
             QR-enabled anti-corruption and citizen feedback platform for RIB case intake, evidence
             support, escalation, and transparent tracking.
@@ -37,7 +37,7 @@ function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10 py-4 text-center text-xs text-white/60">
-        Citizen First Platform - Built for RIB anti-corruption reporting and accountable feedback
+        Smart Anti-Corruption and Citizen Feedback Platform using QR Code Technology - Built for RIB reporting and accountable feedback
       </div>
     </footer>
   );

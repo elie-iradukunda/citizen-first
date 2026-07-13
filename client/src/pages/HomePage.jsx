@@ -195,7 +195,7 @@ function HomePage() {
                 variants={fadeUp}
                 className="inline-flex rounded-full border border-white/35 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-gold"
               >
-                Smart Anti-Corruption and Citizen Feedback Platform
+                Smart Anti-Corruption and Citizen Feedback Platform using QR Code Technology (SACCFP)
               </motion.span>
               <motion.h1
                 custom={0.2}
@@ -209,7 +209,7 @@ function HomePage() {
                 variants={fadeUp}
                 className="mt-6 max-w-2xl text-lg leading-8 text-mist drop-shadow-[0_1px_2px_rgba(3,12,29,0.7)]"
               >
-                Citizen First now demonstrates the Rwanda Investigation Bureau case study: citizens submit
+                SACCFP demonstrates the Rwanda Investigation Bureau case study: citizens submit
                 corruption reports by QR code, preserve evidence, receive case IDs, and track RIB response history.
               </motion.p>
 
@@ -495,7 +495,7 @@ function HomePage() {
             <h2 className="mt-4 font-display text-4xl font-black">Professional support for every citizen</h2>
           </div>
           <p className="max-w-2xl leading-7 text-slate">
-            Citizen First combines RIB reporting guidance, hotline awareness, evidence support, and role-based dashboards.
+            SACCFP combines RIB reporting guidance, hotline awareness, evidence support, and role-based dashboards.
           </p>
         </div>
 

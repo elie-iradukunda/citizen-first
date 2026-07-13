@@ -27,7 +27,7 @@ app.use(express.json({ limit: '12mb' }));
 
 app.get('/', (_request, response) => {
   response.json({
-    name: 'Citizen First API',
+    name: 'SACCFP API',
     version: '1.0.0',
     description:
       'Backend foundation for civic reporting, QR access, complaint tracking, and escalation workflows.',
