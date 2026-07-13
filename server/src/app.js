@@ -25,7 +25,7 @@ app.use(
 );
 app.use(express.json({ limit: '12mb' }));
 
-app.get('/', (_request, response) => {
+app.get('/api', (_request, response) => {
   response.json({
     name: 'SACCFP API',
     version: '1.0.0',
