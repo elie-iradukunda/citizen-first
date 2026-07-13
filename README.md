@@ -2,6 +2,12 @@
 
 Citizen First is a full-stack civic reporting platform for anti-corruption complaints, citizen feedback, QR-based institutional access, and transparent case tracking.
 
+This deployment is configured for the corrected research case study:
+
+- Case study institution: Rwanda Investigation Bureau (RIB), Kigali, Rwanda
+- Workflow: QR Access -> Evidence Triage -> RIB Intake -> Investigation Review -> Supervisory Review -> National Oversight
+- Public demo flow: submit a RIB report, receive a case ID, and track the case status
+
 ## Stack
 
 - React + Vite
@@ -20,9 +26,9 @@ Citizen First is a full-stack civic reporting platform for anti-corruption compl
 - Citizen dashboard: `/dashboard/citizen`
 - Citizen issue submit: `/dashboard/citizen/submit`
 - Citizen services explorer: `/dashboard/citizen/services`
-- Citizen leaders explorer: `/dashboard/citizen/leaders`
-- Institution level dashboard (province, district, sector, cell, village): `/dashboard/officer`
-- Oversight admin dashboard: `/dashboard/admin`
+- Citizen RIB roles explorer: `/dashboard/citizen/leaders`
+- RIB officer dashboard: `/dashboard/officer`
+- RIB oversight admin dashboard: `/dashboard/admin`
 - Dashboard hub: `/dashboards`
 
 Dashboard behavior is role-aware:
@@ -30,6 +36,16 @@ Dashboard behavior is role-aware:
 - Sidebar navigation is filtered by logged-in role.
 - Level leaders see governance mandate, required decisions, and scoped queue.
 - Invite setup can use active login session (access key input optional).
+
+## Presentation Demo Accounts
+
+- RIB Oversight Admin: `rib.oversight@citizenfirst.gov.rw` / `RibAdmin@12345`
+- RIB Intake Officer: `rib.intake@citizenfirst.gov.rw` / `RibOfficer@12345`
+- RIB Investigator: `rib.investigator@citizenfirst.gov.rw` / `RibInvestigator@12345`
+- RIB Supervisor: `rib.supervision@citizenfirst.gov.rw` / `RibSupervisor@12345`
+- Citizen Demo: `citizen.demo@citizenfirst.gov.rw` / `Citizen@12345`
+
+Access keys are also shown on the login screen for presentation use.
 
 ## Dashboard API
 
@@ -116,22 +132,13 @@ Registration login credentials:
 9. Each institution also registers service catalog entries for citizen guidance.
 10. System auto-generates institution QR code after successful registration.
 
-## Linked Hierarchy Test Seed
+## RIB Case Study Seed
 
-By default (`SEED_HIERARCHY_TEST_DATA=true`), server startup preloads a full linked chain:
-National -> Province -> District -> Sector -> Cell -> Village.
+By default, server startup preloads RIB workflow records for:
 
-Use these login credentials:
+QR Access -> Evidence Triage -> RIB Intake -> Investigation Review -> Supervisory Review -> National Oversight.
 
-- National admin: `national.seed.admin@citizenfirst.gov.rw` / `National@12345`
-- Province leader: `province.leader@citizenfirst.gov.rw` / `Province@12345`
-- District leader: `district.leader@citizenfirst.gov.rw` / `District@12345`
-- Sector leader: `sector.leader@citizenfirst.gov.rw` / `Sector@12345`
-- Cell leader: `cell.leader@citizenfirst.gov.rw` / `Cell@12345`
-- Village leader: `village.leader@citizenfirst.gov.rw` / `Village@12345`
-
-Citizen registration page now loads location options from registered hierarchy (`source=registered`),
-so province/district/sector/cell/village are linked to institution registration records.
+The citizen demo profile uses Kigali City, Gasabo, Kacyiru, Kamatamu, Ubumwe as the case-study context.
 
 ## AI Assistant Setup (Free Gemini Tier)
 

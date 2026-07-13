@@ -34,25 +34,25 @@ const EMPTY_SERVICE = {
 };
 
 const CHILD_UNIT_LABEL_BY_LEVEL = {
-  province: 'districts',
-  district: 'sectors',
-  sector: 'cells',
-  cell: 'villages',
+  province: 'investigation review points',
+  district: 'RIB intake points',
+  sector: 'evidence triage desks',
+  cell: 'QR access points',
   village: null,
 };
 
 function getExpectedChildUnitsLabel(level) {
   if (level === 'province') {
-    return 'Number of districts in this province';
+    return 'Number of investigation review points under supervisory review';
   }
   if (level === 'district') {
-    return 'Number of sectors in this district';
+    return 'Number of RIB intake points under investigation review';
   }
   if (level === 'sector') {
-    return 'Number of cells in this sector';
+    return 'Number of evidence triage desks under RIB intake';
   }
   if (level === 'cell') {
-    return 'Number of villages in this cell';
+    return 'Number of QR access points under evidence triage';
   }
   return '';
 }
@@ -60,32 +60,44 @@ function getExpectedChildUnitsLabel(level) {
 function getDefaultLeaderByLevel(level) {
   if (level === 'province') {
     return {
-      positionTitle: 'Governor',
-      positionKinyarwanda: "Guverineri w'Intara",
+      positionTitle: 'RIB Supervisory Review Lead',
+      positionKinyarwanda: 'Umuyobozi ushinzwe isuzuma nigenzura',
     };
   }
   if (level === 'district') {
     return {
-      positionTitle: 'Mayor',
-      positionKinyarwanda: "Umuyobozi w'Akarere",
+      positionTitle: 'Economic and Financial Crimes Investigator',
+      positionKinyarwanda: 'Umugenzacyaha wibyaha byubukungu nimari',
     };
   }
   if (level === 'sector') {
     return {
-      positionTitle: 'Executive Secretary',
-      positionKinyarwanda: "Gitifu w'Umurenge",
+      positionTitle: 'RIB Anti-Corruption Intake Officer',
+      positionKinyarwanda: 'Umukozi wakira amakuru ya ruswa',
     };
   }
   if (level === 'cell') {
     return {
-      positionTitle: 'Executive Secretary',
-      positionKinyarwanda: "Gitifu w'Akagari",
+      positionTitle: 'Evidence Preservation Officer',
+      positionKinyarwanda: 'Umukozi ushinzwe kubika ibimenyetso',
     };
   }
   return {
-    positionTitle: 'Village Leader',
-    positionKinyarwanda: "Umuyobozi w'Umudugudu",
+    positionTitle: 'Public QR Access Officer',
+    positionKinyarwanda: 'Umukozi ushinzwe inzira ya QR',
   };
+}
+
+function formatWorkflowLevel(level = '') {
+  const labels = {
+    province: 'Supervisory Review',
+    district: 'Investigation Review',
+    sector: 'RIB Intake',
+    cell: 'Evidence Triage',
+    village: 'QR Access',
+  };
+
+  return labels[level] ?? level;
 }
 
 function InstitutionRegistrationPage() {
@@ -101,7 +113,7 @@ function InstitutionRegistrationPage() {
 
   const [institutionForm, setInstitutionForm] = useState({
     institutionName: '',
-    institutionType: 'Local Government Institution',
+    institutionType: 'RIB Anti-Corruption Workflow Point',
     officialEmail: '',
     officialPhone: '',
     officeAddress: '',
@@ -145,7 +157,7 @@ function InstitutionRegistrationPage() {
 
     if (!inviteToken) {
       setLoadingInvite(false);
-      setInviteError('Missing invite token. Use the secure link shared by system admin or your parent level.');
+      setInviteError('Missing invite token. Use the secure link shared by RIB oversight or your parent workflow level.');
       return () => {
         isActive = false;
       };
@@ -334,7 +346,7 @@ function InstitutionRegistrationPage() {
         <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
           <DashboardState
             title="Loading invite"
-            description="Verifying secure registration token and preparing institution setup form."
+            description="Verifying secure registration token and preparing RIB workflow setup form."
           />
         </section>
       </div>
@@ -357,21 +369,21 @@ function InstitutionRegistrationPage() {
   return (
     <div className="bg-mist">
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
-        <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">Institution Registration</p>
+        <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">RIB Workflow Registration</p>
         <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
-          Register institution, leader, and staff
+          Register RIB workflow point, lead, and staff
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate">
-          Invite scope: {invite.targetLevel.toUpperCase()} level for {invite.location.province}
+          Invite scope: {formatWorkflowLevel(invite.targetLevel)} for {invite.location.province}
           {invite.location.district ? `, ${invite.location.district}` : ''}.
         </p>
 
         <div className="mt-10 grid gap-6 xl:grid-cols-[1.14fr_0.86fr]">
           <form onSubmit={submitRegistration} className="space-y-5 rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft lg:p-8">
-            <p className="font-display text-2xl font-black text-ink">Institution Profile</p>
+            <p className="font-display text-2xl font-black text-ink">RIB Workflow Profile</p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-ink">Institution Name</span>
+                <span className="text-sm font-semibold text-ink">Workflow Point Name</span>
                 <input
                   name="institutionName"
                   value={institutionForm.institutionName}
@@ -381,7 +393,7 @@ function InstitutionRegistrationPage() {
                 />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-ink">Institution Type</span>
+                <span className="text-sm font-semibold text-ink">Workflow Type</span>
                 <input
                   name="institutionType"
                   value={institutionForm.institutionType}
@@ -428,7 +440,7 @@ function InstitutionRegistrationPage() {
             </label>
 
             <LocationFieldGroup
-              title="Institution Location"
+              title="Case-study Location"
               location={location}
               updateLocation={updateLocation}
               options={options}
@@ -453,12 +465,12 @@ function InstitutionRegistrationPage() {
                 </label>
               ) : (
                 <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-slate">
-                  Village level has no lower governance unit to register.
+                  QR access level has no lower workflow point to register.
                 </p>
               )}
 
               <div className="mt-4 flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-ink">Services provided by this institution</p>
+                <p className="text-sm font-semibold text-ink">RIB services provided by this workflow point</p>
                 <button
                   type="button"
                   onClick={addService}
@@ -495,10 +507,10 @@ function InstitutionRegistrationPage() {
             </section>
 
             <section className="rounded-2xl border border-ink/10 bg-white p-5">
-              <p className="font-display text-xl font-black text-ink">Leader Profile</p>
+              <p className="font-display text-xl font-black text-ink">RIB Lead Profile</p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-ink">Leader Full Name</span>
+                  <span className="text-sm font-semibold text-ink">Lead Full Name</span>
                   <input
                     name="leaderFullName"
                     value={institutionForm.leaderFullName}
@@ -508,7 +520,7 @@ function InstitutionRegistrationPage() {
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-ink">Leader National ID</span>
+                  <span className="text-sm font-semibold text-ink">Lead National ID</span>
                   <input
                     name="leaderNationalId"
                     value={institutionForm.leaderNationalId}
@@ -522,7 +534,7 @@ function InstitutionRegistrationPage() {
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-ink">Leader Phone</span>
+                  <span className="text-sm font-semibold text-ink">Lead Phone</span>
                   <input
                     name="leaderPhone"
                     value={institutionForm.leaderPhone}
@@ -533,7 +545,7 @@ function InstitutionRegistrationPage() {
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-ink">Leader Email</span>
+                  <span className="text-sm font-semibold text-ink">Lead Email</span>
                   <input
                     type="email"
                     name="leaderEmail"
@@ -547,7 +559,7 @@ function InstitutionRegistrationPage() {
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-ink">Leader Password</span>
+                  <span className="text-sm font-semibold text-ink">Lead Password</span>
                   <input
                     type="password"
                     name="leaderPassword"
@@ -652,7 +664,7 @@ function InstitutionRegistrationPage() {
                       <input
                         value={employee.leaderCode}
                         onChange={(event) => updateEmployee(index, 'leaderCode', event.target.value)}
-                        placeholder="Leader code (optional)"
+                        placeholder="RIB lead code (optional)"
                         className="rounded-2xl border border-ink/15 bg-white px-4 py-3 text-sm outline-none focus:border-tide"
                       />
                       <input
@@ -717,7 +729,7 @@ function InstitutionRegistrationPage() {
               disabled={submitting}
               className="rounded-full bg-ink px-6 py-3 text-sm font-bold text-white disabled:opacity-70"
             >
-              {submitting ? 'Registering Institution...' : 'Complete Institution Registration'}
+              {submitting ? 'Registering RIB workflow...' : 'Complete RIB Workflow Registration'}
             </button>
           </form>
 
@@ -726,16 +738,19 @@ function InstitutionRegistrationPage() {
               <div className="rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
                 <p className="font-display text-2xl font-black text-ink">Registration Completed</p>
                 <p className="mt-3 text-sm leading-7 text-slate">
-                  Institution ID: {successData.institution.institutionId}
+                  Workflow ID: {successData.institution.institutionId}
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate">
-                  Leader Login Email: <span className="font-bold text-ink">{successData.leaderUser.email}</span>
+                  RIB Lead Login Email: <span className="font-bold text-ink">{successData.leaderUser.email}</span>
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate">
-                  Leader Access Key: <span className="font-bold text-ink">{successData.leaderUser.accessKey}</span>
+                  RIB Lead Access Key: <span className="font-bold text-ink">{successData.leaderUser.accessKey}</span>
                 </p>
                 <p className="mt-2 text-sm leading-7 text-slate">
-                  Next level to invite: {successData.leaderUser.nextLevelToInvite ?? 'No next level'}
+                  Next workflow stage to invite:{' '}
+                  {successData.leaderUser.nextLevelToInvite
+                    ? formatWorkflowLevel(successData.leaderUser.nextLevelToInvite)
+                    : 'No next level'}
                 </p>
                 {successData.hierarchy?.childUnitLabel ? (
                   <p className="mt-2 text-sm leading-7 text-slate">
@@ -756,19 +771,19 @@ function InstitutionRegistrationPage() {
             ) : (
               <DashboardState
                 title="Awaiting submission"
-                description="Complete institution, leader, departments, and employee details to finalize registration."
+                description="Complete workflow point, lead, departments, and employee details to finalize registration."
               />
             )}
 
             <div className="rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
-              <p className="font-display text-2xl font-black text-ink">Staff Structure Samples</p>
+              <p className="font-display text-2xl font-black text-ink">RIB Staff Structure Samples</p>
               <div className="mt-4 space-y-3">
                 {templates.slice(0, 3).map((item) => (
                   <article key={item.leader_code} className="rounded-xl bg-mist p-4 text-sm text-slate">
                     <p className="font-semibold text-ink">
                       {item.position_title} ({item.position_kinyarwanda})
                     </p>
-                    <p className="mt-2">{item.institution_level} level template</p>
+                    <p className="mt-2">{formatWorkflowLevel(item.institution_level?.toLowerCase())} template</p>
                     <p className="mt-2">Reports to: {item.reports_to}</p>
                   </article>
                 ))}

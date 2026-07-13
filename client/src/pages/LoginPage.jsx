@@ -5,57 +5,27 @@ import { getRoleDashboardPath } from '../lib/authRouting';
 
 const demoAccounts = [
   {
-    role: 'Seed National Admin',
-    email: 'national.seed.admin@citizenfirst.gov.rw',
-    password: 'National@12345',
+    role: 'RIB Oversight Admin',
+    email: 'rib.oversight@citizenfirst.gov.rw',
+    password: 'RibAdmin@12345',
   },
   {
-    role: 'Seed Province Leader',
-    email: 'province.leader@citizenfirst.gov.rw',
-    password: 'Province@12345',
+    role: 'RIB Intake Officer',
+    email: 'rib.intake@citizenfirst.gov.rw',
+    password: 'RibOfficer@12345',
   },
   {
-    role: 'Seed District Leader',
-    email: 'district.leader@citizenfirst.gov.rw',
-    password: 'District@12345',
+    role: 'RIB Investigator',
+    email: 'rib.investigator@citizenfirst.gov.rw',
+    password: 'RibInvestigator@12345',
   },
   {
-    role: 'Seed Sector Leader',
-    email: 'sector.leader@citizenfirst.gov.rw',
-    password: 'Sector@12345',
+    role: 'RIB Supervisor',
+    email: 'rib.supervision@citizenfirst.gov.rw',
+    password: 'RibSupervisor@12345',
   },
   {
-    role: 'Seed Cell Leader',
-    email: 'cell.leader@citizenfirst.gov.rw',
-    password: 'Cell@12345',
-  },
-  {
-    role: 'Seed Village Leader',
-    email: 'village.leader@citizenfirst.gov.rw',
-    password: 'Village@12345',
-  },
-  {
-    role: 'Test Admin',
-    email: 'test.admin@citizenfirst.gov.rw',
-    password: 'Admin@12345',
-  },
-  {
-    role: 'National Admin',
-    email: 'national.admin@citizenfirst.gov.rw',
-    password: 'Admin@12345',
-  },
-  {
-    role: 'Dashboard Admin',
-    email: 'oversight.admin@citizenfirst.gov.rw',
-    password: 'Admin@12345',
-  },
-  {
-    role: 'Officer',
-    email: 'officer@citizenfirst.gov.rw',
-    password: 'Officer@12345',
-  },
-  {
-    role: 'Citizen',
+    role: 'Citizen Demo',
     email: 'citizen.demo@citizenfirst.gov.rw',
     password: 'Citizen@12345',
   },
@@ -63,47 +33,23 @@ const demoAccounts = [
 
 const demoAccessKeys = [
   {
-    role: 'Seed National Admin',
-    accessKey: 'CF-NATIONAL-SEED-2026',
-  },
-  {
-    role: 'Seed Province Leader',
-    accessKey: 'CF-PRO-SEED-2026',
-  },
-  {
-    role: 'Seed District Leader',
-    accessKey: 'CF-DIS-SEED-2026',
-  },
-  {
-    role: 'Seed Sector Leader',
-    accessKey: 'CF-SEC-SEED-2026',
-  },
-  {
-    role: 'Seed Cell Leader',
-    accessKey: 'CF-CEL-SEED-2026',
-  },
-  {
-    role: 'Seed Village Leader',
-    accessKey: 'CF-VIL-SEED-2026',
-  },
-  {
-    role: 'Test Admin',
-    accessKey: 'CF-TEST-ADMIN-2026',
-  },
-  {
-    role: 'National Admin',
-    accessKey: 'CF-ADMIN-2026',
-  },
-  {
-    role: 'Dashboard Admin',
+    role: 'RIB Oversight Admin',
     accessKey: 'CF-DASH-ADMIN-2026',
   },
   {
-    role: 'Officer',
+    role: 'RIB Intake Officer',
     accessKey: 'CF-DASH-OFFICER-2026',
   },
   {
-    role: 'Citizen',
+    role: 'RIB Investigator',
+    accessKey: 'CF-RIB-INVESTIGATOR-2026',
+  },
+  {
+    role: 'RIB Supervisor',
+    accessKey: 'CF-RIB-SUPERVISION-2026',
+  },
+  {
+    role: 'Citizen Demo',
     accessKey: 'CF-DASH-CITIZEN-2026',
   },
 ];
@@ -160,11 +106,11 @@ function LoginPage() {
       <section className="mx-auto max-w-4xl px-6 py-14 lg:px-8">
         <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">Secure Login</p>
         <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
-          Access dashboard with authorized key
+          Access the RIB case-study dashboards
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-slate">
-          Dashboard and institution management pages are protected. Sign in using email and password, or use access
-          key mode.
+          Sign in as RIB oversight, intake, investigation, supervisory review, or citizen demo user.
+          Each role opens the dashboard expected by the corrected proposal.
         </p>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1fr]">
@@ -239,7 +185,7 @@ function LoginPage() {
 
             {switchAccount ? (
               <div className="mt-4 rounded-xl border border-gold/30 bg-gold/20 px-4 py-3 text-sm text-ink">
-                Continue with a citizen account to submit an institution issue report. Signing in here will replace the
+                Continue with a citizen account to submit a RIB corruption report. Signing in here will replace the
                 current session.
               </div>
             ) : null}
@@ -253,14 +199,14 @@ function LoginPage() {
             </button>
 
             <p className="mt-5 text-xs leading-6 text-slate">
-              After login, access is role-based for dashboard modules and hierarchy tools.
+              After login, access is role-based for RIB workflow dashboards and complaint tools.
             </p>
           </form>
 
           <aside className="rounded-[1.8rem] border border-ink/10 bg-white p-7 shadow-soft">
             <p className="font-display text-2xl font-black text-ink">Demo Credentials</p>
             <p className="mt-3 text-sm leading-7 text-slate">
-              These demo accounts are configured in `server/.env`. You can replace them with production credentials.
+              These demo accounts are seeded for the RIB case study and can be used directly during presentation.
             </p>
 
             <div className="mt-5 space-y-3">

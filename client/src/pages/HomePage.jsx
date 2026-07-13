@@ -26,41 +26,41 @@ const fadeUp = {
 
 const processSteps = [
   {
-    title: 'Join and verify profile',
+    title: 'Scan the RIB QR code',
     description:
-      'Citizen or institution users register once with complete location and identity information.',
+      'Citizen opens the reporting channel without asking staff where to go physically.',
   },
   {
-    title: 'Submit issue to local level',
+    title: 'Submit a structured report',
     description:
-      'Complaints start from village or cell leadership and include clear evidence and target leaders.',
+      'The form captures bribery, abuse of authority, unofficial fee, or missing-response details.',
   },
   {
-    title: 'Escalation after SLA window',
+    title: 'Evidence and intake review',
     description:
-      'Unresolved cases automatically move up the chain after 3 working days with full history.',
+      'RIB triages screenshots, receipts, documents, voice notes, confidentiality, and urgency.',
   },
   {
-    title: 'Track outcomes transparently',
+    title: 'Track and escalate outcomes',
     description:
-      'Every update remains visible in dashboard timeline with current level, deadline, and resolution notes.',
+      'Every update remains visible with current RIB stage, deadline, response notes, and escalation history.',
   },
 ];
 
 const governancePillars = [
   {
-    title: 'Citizen-first service routing',
-    description: 'AI and hierarchy guidance direct people to the exact office that can solve their issue.',
+    title: 'RIB case routing',
+    description: 'QR access and assistant guidance direct citizens to the correct anti-corruption workflow stage.',
     icon: ChatBubbleBottomCenterTextIcon,
   },
   {
-    title: 'Integrity and anti-corruption focus',
-    description: 'Hotlines, structured reporting, and escalation controls reduce room for hidden misconduct.',
+    title: 'Integrity and confidentiality',
+    description: 'Anonymous reporting, evidence support, and controlled review reduce fear of exposure.',
     icon: ShieldCheckIcon,
   },
   {
-    title: 'Fast emergency and incident support',
-    description: 'Emergency channels are always visible for immediate response and protection.',
+    title: 'Oversight and escalation',
+    description: 'Dashboards highlight overdue, unresolved, and sensitive cases for RIB supervisory action.',
     icon: ExclamationTriangleIcon,
   },
 ];
@@ -77,47 +77,47 @@ const heroGalleryImages = [
   },
   {
     src: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80',
-    alt: 'Citizen service support staff reviewing service documents',
-    tag: 'Citizen Service Desk',
+    alt: 'Citizen feedback staff reviewing digital report documents',
+    tag: 'RIB Intake Review',
   },
   {
     src: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80',
-    alt: 'Citizen support and paperwork handling',
-    tag: 'Citizen Support',
+    alt: 'Citizen support and confidential reporting discussion',
+    tag: 'Confidential Reporting',
   },
   {
     src: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1200&q=80',
-    alt: 'Team coordination for governance and accountability',
-    tag: 'Leadership Coordination',
+    alt: 'Team coordination for investigation and accountability',
+    tag: 'Investigation Coordination',
   },
   {
     src: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
     alt: 'Digital dashboard and analytics monitoring',
-    tag: 'Digital Dashboard Oversight',
+    tag: 'RIB Dashboard Oversight',
   },
   {
     src: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80',
-    alt: 'Public institution collaboration session',
-    tag: 'Public Institution Collaboration',
+    alt: 'RIB institution collaboration session',
+    tag: 'RIB Collaboration',
   },
 ];
 
 const communityVisualCards = [
   {
-    title: 'Local leadership coordination',
-    description: 'Sector and cell teams align on service delivery and issue follow-up plans.',
+    title: 'RIB workflow coordination',
+    description: 'Intake, evidence, investigation, and supervisory users align on case follow-up.',
     image:
       'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1200&q=80',
   },
   {
-    title: 'Digital citizen support',
-    description: 'Citizens can get guidance online and track official complaint progress securely.',
+    title: 'Digital citizen feedback',
+    description: 'Citizens can submit corruption concerns online and track official case progress securely.',
     image:
       'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
   },
   {
-    title: 'Transparent service offices',
-    description: 'Institution teams publish service requirements and accountability contact points.',
+    title: 'Transparent RIB oversight',
+    description: 'Dashboard users monitor deadlines, escalations, and accountable feedback from one place.',
     image:
       'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80',
   },
@@ -181,26 +181,12 @@ function HomePage() {
         <div className="absolute inset-0">
           <img
             src={heroVisuals.main}
-            alt="Kigali Convention Centre representing Rwanda public service infrastructure"
+            alt="Kigali Convention Centre representing Rwanda digital public accountability"
             className="h-full w-full object-cover opacity-[0.22] brightness-[0.55] saturate-75"
           />
           <div className="absolute inset-0 bg-ink/80" />
         </div>
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(4,18,43,0.90)_0%,rgba(8,29,63,0.74)_46%,rgba(7,26,55,0.50)_100%)]" />
-        <motion.div
-          aria-hidden="true"
-          animate={{ y: [-8, 12, -8] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -left-14 top-24 h-40 w-40 rounded-full bg-gold/30 blur-3xl"
-        />
-        <motion.div
-          aria-hidden="true"
-          animate={{ y: [10, -14, 10] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute right-10 top-16 h-56 w-56 rounded-full bg-white/20 blur-3xl"
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_18%,rgba(255,221,0,0.25),transparent_34%)]" />
-
         <div className="mx-auto grid max-w-7xl gap-10 px-6 pb-16 pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:pb-20 lg:pt-20">
           <motion.div initial="hidden" animate="visible" className="relative z-10 text-white">
             <div className="rounded-[2rem] border border-white/30 bg-ink/55 p-5 shadow-[0_30px_80px_rgba(2,10,28,0.50)] backdrop-blur-[2px] lg:p-7">
@@ -216,15 +202,15 @@ function HomePage() {
                 variants={fadeUp}
                 className="mt-6 max-w-3xl font-display text-5xl font-black leading-tight text-white md:text-6xl"
               >
-                Trusted public services, clear accountability, and real dashboard follow-up.
+                RIB QR reporting, protected evidence, and accountable dashboard follow-up.
               </motion.h1>
               <motion.p
                 custom={0.3}
                 variants={fadeUp}
                 className="mt-6 max-w-2xl text-lg leading-8 text-mist drop-shadow-[0_1px_2px_rgba(3,12,29,0.7)]"
               >
-                From village to national level, Citizen First helps residents register, ask for service guidance,
-                submit issues, and track official response history in one secure digital experience.
+                Citizen First now demonstrates the Rwanda Investigation Bureau case study: citizens submit
+                corruption reports by QR code, preserve evidence, receive case IDs, and track RIB response history.
               </motion.p>
 
               <motion.div custom={0.4} variants={fadeUp} className="mt-8 flex flex-wrap gap-4">
@@ -232,7 +218,7 @@ function HomePage() {
                   to={isAuthenticated ? dashboardPath : '/register/citizen'}
                   className="rounded-full bg-gold px-6 py-4 text-sm font-bold text-ink transition hover:brightness-95"
                 >
-                  {isAuthenticated ? 'Go to my dashboard' : 'Join as citizen'}
+                  {isAuthenticated ? 'Go to my dashboard' : 'Register as citizen'}
                 </Link>
                 <Link
                   to={isAuthenticated ? dashboardPath : '/login?redirect=%2Fdashboards'}
@@ -244,7 +230,7 @@ function HomePage() {
                   to="/register/institution"
                   className="rounded-full border border-white/40 bg-white/10 px-6 py-4 text-sm font-bold text-white transition hover:bg-white/20"
                 >
-                  Institution onboarding
+                  RIB onboarding
                 </Link>
               </motion.div>
             </div>
@@ -308,25 +294,25 @@ function HomePage() {
               </div>
             </div>
             <h2 className="font-display text-3xl font-black text-[#000080]">
-              Public quick actions
+              RIB quick actions
             </h2>
             <div className="mt-6 space-y-4">
               <article className="rounded-2xl border border-ink/10 bg-mist p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-gold">Emergency hotline</p>
                 <p className="mt-2 text-lg font-semibold text-[#000080]">
-                  Call 112 for immediate danger and rescue response.
+                  Call 112 for immediate danger and urgent public safety support.
                 </p>
               </article>
               <article className="rounded-2xl border border-ink/10 bg-mist p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-gold">Integrity hotline</p>
                 <p className="mt-2 text-lg font-semibold text-[#000080]">
-                  Call 997 for bribery, extortion, or service abuse.
+                  Call 997 for bribery, extortion, unofficial payments, or corruption risk.
                 </p>
               </article>
               <article className="rounded-2xl border border-ink/10 bg-mist p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-gold">Live dashboard</p>
                 <p className="mt-2 text-lg font-semibold text-[#000080]">
-                  Track complaints and response deadlines by case ID.
+                  Track RIB case status and response deadlines by case ID.
                 </p>
               </article>
             </div>
@@ -365,11 +351,11 @@ function HomePage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">Get started quickly</p>
-            <h2 className="mt-4 font-display text-4xl font-black">Join, sign in, and manage your services</h2>
+            <h2 className="mt-4 font-display text-4xl font-black">Register, sign in, and manage RIB reports</h2>
           </div>
           <p className="max-w-2xl leading-7 text-slate">
-            Citizens and institution teams use one platform with role-based dashboards, secure sessions, and direct
-            access to the right local office.
+            Citizens and RIB users use one platform with role-based dashboards, secure sessions, and direct
+            access to the anti-corruption reporting workflow.
           </p>
         </div>
 
@@ -384,7 +370,7 @@ function HomePage() {
             <UserPlusIcon className="h-11 w-11 text-tide" />
             <h3 className="mt-4 font-display text-2xl font-black text-ink">Citizen join</h3>
             <p className="mt-3 leading-7 text-slate">
-              Register with your full location from province to village and start tracking your cases from dashboard.
+              Register with basic identity and location details, then track RIB case updates from your dashboard.
             </p>
             <Link
               to="/register/citizen"
@@ -403,15 +389,15 @@ function HomePage() {
             className="rounded-[1.6rem] border border-ink/10 bg-white p-6 shadow-soft"
           >
             <BuildingOffice2Icon className="h-11 w-11 text-tide" />
-            <h3 className="mt-4 font-display text-2xl font-black text-ink">Institution onboarding</h3>
+            <h3 className="mt-4 font-display text-2xl font-black text-ink">RIB onboarding</h3>
             <p className="mt-3 leading-7 text-slate">
-              Province, district, sector, cell, and village leaders register teams, services, and hierarchy links.
+              RIB workflow users register intake, evidence, investigation, supervision, and oversight roles.
             </p>
             <Link
               to="/register/institution"
               className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink/20 px-4 py-2 text-sm font-bold text-ink"
             >
-              Register institution
+              Register RIB institution
               <ArrowRightIcon className="h-4 w-4" />
             </Link>
           </motion.article>
@@ -443,12 +429,12 @@ function HomePage() {
         <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">Governance process</p>
-              <h2 className="mt-4 font-display text-4xl font-black text-ink">How cases move in the platform</h2>
+              <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">RIB workflow</p>
+              <h2 className="mt-4 font-display text-4xl font-black text-ink">How RIB cases move in the platform</h2>
             </div>
             <p className="max-w-2xl leading-7 text-slate">
-              The workflow is built for transparency from first report to final closure with full accountability at
-              each administrative level.
+              The workflow is built for transparency from first QR report to closure, with accountability at
+              each RIB review stage.
             </p>
           </div>
 
@@ -478,7 +464,7 @@ function HomePage() {
             <h2 className="mt-4 font-display text-4xl font-black">See how the platform supports real workflows</h2>
           </div>
           <p className="max-w-2xl leading-7 text-slate">
-            These visual blocks represent institution coordination, digital service access, and transparent support.
+            These visual blocks represent RIB coordination, digital reporting access, and accountable follow-up.
           </p>
         </div>
 
@@ -509,7 +495,7 @@ function HomePage() {
             <h2 className="mt-4 font-display text-4xl font-black">Professional support for every citizen</h2>
           </div>
           <p className="max-w-2xl leading-7 text-slate">
-            Citizen First combines AI guidance, hotline awareness, and role-based accountability dashboards.
+            Citizen First combines RIB reporting guidance, hotline awareness, evidence support, and role-based dashboards.
           </p>
         </div>
 
@@ -538,16 +524,16 @@ function HomePage() {
         <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">Popular services</p>
+              <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">RIB services</p>
               <h2 className="mt-4 font-display text-4xl font-black text-ink">
-                Public service guidance by institution level
+                Case-study services expected by the proposal
               </h2>
             </div>
             <Link
               to="/services"
               className="rounded-full border border-ink/20 px-5 py-3 text-sm font-bold text-ink"
             >
-              View all services
+              View RIB services
             </Link>
           </div>
 
@@ -597,7 +583,7 @@ function HomePage() {
               Ask the AI assistant where to go, what to prepare, and what authority level to contact.
             </h2>
             <p className="mt-5 max-w-3xl text-sm leading-7 text-white/75">
-              The assistant combines service routing guidance with emergency and anti-corruption support so citizens
+              The assistant combines RIB reporting guidance with hotline and evidence-preparation support so citizens
               get practical next steps quickly.
             </p>
           </div>
@@ -606,19 +592,19 @@ function HomePage() {
               Open AI assistant
             </Link>
             <Link to="/report" className="rounded-full border border-white/30 px-6 py-4 text-sm font-bold text-white">
-              Submit report
+              Submit RIB report
             </Link>
             <Link
               to="/track"
               className="rounded-full border border-white/30 px-6 py-4 text-sm font-bold text-white"
             >
-              Track case
+              Track RIB case
             </Link>
             <Link
               to="/governance-structure"
               className="rounded-full border border-white/30 px-6 py-4 text-sm font-bold text-white"
             >
-              View hierarchy
+              View workflow
             </Link>
           </div>
         </div>
@@ -629,11 +615,11 @@ function HomePage() {
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">Ready to start</p>
             <h2 className="mt-4 font-display text-4xl font-black leading-tight text-ink">
-              Join the platform and keep public service delivery transparent.
+              Join the platform and keep anti-corruption reporting transparent.
             </h2>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-slate">
-              Register, login, and continue from where you stopped. Your dashboard keeps your role, location, and
-              complaint workflow in one place.
+              Register, login, and continue from where you stopped. Your dashboard keeps your role, case records,
+              evidence context, and RIB feedback workflow in one place.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

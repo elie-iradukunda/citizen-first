@@ -21,11 +21,11 @@ import {
 import { formatDateTime } from '../lib/time';
 
 const WORKSPACE_TABS = [
-  { id: 'overview', label: 'Overview', detail: 'Mandate and hierarchy summary' },
-  { id: 'cases', label: 'Case Queue', detail: 'Citizen complaints and escalations' },
-  { id: 'territory', label: 'Territory', detail: 'Explorer and scope coverage' },
+  { id: 'overview', label: 'Overview', detail: 'Mandate and RIB workflow summary' },
+  { id: 'cases', label: 'Case Queue', detail: 'Citizen reports and escalations' },
+  { id: 'territory', label: 'Workflow', detail: 'Explorer and scope coverage' },
   { id: 'team', label: 'Team Watch', detail: 'Notifications and workload' },
-  { id: 'institution-admin', label: 'Institution Admin', detail: 'Services, staff, and platform access' },
+  { id: 'institution-admin', label: 'RIB Admin', detail: 'Services, staff, and platform access' },
 ];
 
 const CASE_VIEW_CONFIG = {
@@ -116,9 +116,18 @@ function resetFilterChildren(filters, field) {
 }
 
 function formatLevel(level = '') {
-  return level
+  const workflowLabels = {
+    village: 'QR Access',
+    cell: 'Evidence Triage',
+    sector: 'RIB Intake',
+    district: 'Investigation Review',
+    province: 'Supervisory Review',
+    national: 'National Oversight',
+  };
+
+  return workflowLabels[level] ?? (level
     ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
-    : 'Unknown';
+    : 'Unknown');
 }
 
 function getActiveWorkspace(hash) {
@@ -382,8 +391,8 @@ function OfficerDashboardPage() {
   }
 
   const managerProfile = dashboard.managerProfile ?? {
-    title: 'Institution Level Dashboard',
-    scopeLabel: 'Case management and service accountability',
+    title: 'RIB Workflow Dashboard',
+    scopeLabel: 'Case management and anti-corruption feedback accountability',
     nextInviteLevel: null,
     responsibilities: [],
     requiredDecisions: [],
@@ -681,8 +690,8 @@ function OfficerDashboardPage() {
         </div>
       </div>
       <div className="mt-4 grid gap-2 text-sm text-slate sm:grid-cols-2">
-        <p>Institution: {item.institution}</p>
-        <p>Level: {item.currentLevel}</p>
+        <p>RIB workflow point: {item.institution}</p>
+        <p>Workflow stage: {formatLevel(item.currentLevel)}</p>
         <p>Assigned: {item.assignedOfficer}</p>
         <p>Deadline: {formatDateTime(item.deadlineAt)}</p>
         <p>Submitted: {formatDateTime(item.submittedAt)}</p>
@@ -692,7 +701,7 @@ function OfficerDashboardPage() {
       {item.sourceInstitution ? (
         <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
           <p className="font-semibold text-ink">{item.sourceInstitution.institutionName}</p>
-          <p className="mt-1">{item.sourceInstitution.serviceName || 'General institution complaint'}</p>
+          <p className="mt-1">{item.sourceInstitution.serviceName || 'General RIB workflow complaint'}</p>
         </div>
       ) : null}
       {item.reporterProfile ? (
@@ -720,9 +729,9 @@ function OfficerDashboardPage() {
       ) : null}
       {item.accusedLeaders?.length > 0 ? (
         <div className="mt-3 rounded-xl bg-white px-3 py-3 text-sm text-slate">
-          <p className="font-semibold text-ink">Accused leaders</p>
+          <p className="font-semibold text-ink">Reported RIB roles</p>
           <p className="mt-1">
-            {item.accusedLeaders.map((entry) => `${entry.leaderName} (${entry.level})`).join(', ')}
+            {item.accusedLeaders.map((entry) => `${entry.leaderName} (${formatLevel(entry.level)})`).join(', ')}
           </p>
         </div>
       ) : null}
@@ -808,7 +817,7 @@ function OfficerDashboardPage() {
           {managerProfile.title}
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate">
-          {managerProfile.scopeLabel}. Prioritize urgent complaints, monitor overdue risk, and keep governance flow active.
+          {managerProfile.scopeLabel}. Prioritize urgent RIB reports, monitor overdue risk, and keep the workflow active.
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -874,7 +883,7 @@ function OfficerDashboardPage() {
 
           <SectionCard
             title="Required decisions"
-            subtitle="Leadership actions that keep the hierarchy accountable."
+            subtitle="Officer actions that keep the RIB workflow accountable."
             headerAction={
               managerProfile.nextInviteLevel ? (
                 <Link
@@ -894,7 +903,7 @@ function OfficerDashboardPage() {
               ))}
               {!managerProfile.nextInviteLevel ? (
                 <article className="rounded-2xl bg-gold/25 px-4 py-3 text-sm font-semibold text-ink">
-                  No lower-level invite required for this role. Focus on case quality and response deadlines.
+                  No lower workflow invite is required for this role. Focus on case quality and response deadlines.
                 </article>
               ) : null}
             </div>
@@ -905,8 +914,8 @@ function OfficerDashboardPage() {
         {activeWorkspace === 'overview' ? (
         <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
           <SectionCard
-            title="Institution structure"
-            subtitle="Parent-child registration chain and management coverage."
+            title="RIB workflow structure"
+            subtitle="Parent-child workflow chain and management coverage."
           >
             {institutionManagement.hasInstitutionRecord ? (
               <div className="space-y-3 text-sm text-slate">
@@ -925,7 +934,7 @@ function OfficerDashboardPage() {
                   </article>
                 ) : (
                   <article className="rounded-2xl bg-mist px-4 py-3">
-                    No lower-level governance unit for this level.
+                    No lower workflow unit is required for this role.
                   </article>
                 )}
                 <article className="rounded-2xl bg-mist px-4 py-3">
@@ -939,7 +948,7 @@ function OfficerDashboardPage() {
             )}
           </SectionCard>
 
-          <SectionCard title="Services and lower levels" subtitle="Operational profile for this governance unit.">
+          <SectionCard title="Services and workflow stages" subtitle="Operational profile for this RIB workflow point.">
             <div className="space-y-3">
               <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
                 Services listed: {institutionManagement.servicesCount}
@@ -985,7 +994,7 @@ function OfficerDashboardPage() {
         <div className="mt-8 grid gap-6">
           {!institutionManagement.hasInstitutionRecord ? (
             <SectionCard
-              title="Institution admin unavailable"
+              title="RIB admin unavailable"
               subtitle="Complete institution registration first so this dashboard can manage services, staff, and access."
             >
               <article className="rounded-2xl bg-gold/25 px-4 py-4 text-sm font-semibold text-ink">
@@ -1003,7 +1012,7 @@ function OfficerDashboardPage() {
             </SectionCard>
           ) : institutionAdminError ? (
             <SectionCard
-              title="Institution admin unavailable"
+              title="RIB admin unavailable"
               subtitle="The management endpoint did not respond for this institution."
             >
               <article className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-4 text-sm font-semibold text-clay">
@@ -1025,8 +1034,8 @@ function OfficerDashboardPage() {
 
               <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
                 <SectionCard
-                  title="Institution profile"
-                  subtitle="Keep service office details current so citizens and other leaders see accurate information."
+                  title="RIB workflow profile"
+                  subtitle="Keep workflow details current so citizens and RIB users see accurate information."
                   headerAction={
                     <button
                       type="button"
@@ -1040,7 +1049,7 @@ function OfficerDashboardPage() {
                 >
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-2">
-                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Institution type</span>
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Workflow type</span>
                       <input
                         value={institutionForm.institutionType}
                         onChange={(event) => updateInstitutionField('institutionType', event.target.value)}
@@ -1065,7 +1074,7 @@ function OfficerDashboardPage() {
                       />
                     </label>
                     <label className="space-y-2">
-                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Institution slug</span>
+                      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Workflow slug</span>
                       <input
                         value={institutionAdmin?.slug ?? ''}
                         disabled
@@ -1085,12 +1094,12 @@ function OfficerDashboardPage() {
                 </SectionCard>
 
                 <SectionCard
-                  title="Access and hierarchy"
+                  title="Access and workflow"
                   subtitle="A quick view of what this institution already manages on the platform."
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Primary leader</p>
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Primary RIB lead</p>
                       <p className="mt-1 font-semibold text-ink">
                         {institutionManagement.leader?.fullName ?? 'Not linked'}
                       </p>
@@ -1123,14 +1132,14 @@ function OfficerDashboardPage() {
                     </div>
                   ) : (
                     <article className="mt-4 rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                      No department records have been added for this institution yet.
+                      No department records have been added for this RIB workflow point yet.
                     </article>
                   )}
                 </SectionCard>
               </div>
 
               <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-                <SectionCard title="Service catalog" subtitle="Publish the services this institution offers so citizens see the right options.">
+                <SectionCard title="RIB service catalog" subtitle="Publish the reporting services this workflow point offers so citizens see the right options.">
                   <div className="grid gap-3 md:grid-cols-[0.42fr_0.58fr_auto]">
                     <label className="space-y-2">
                       <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Service name</span>
@@ -1149,7 +1158,7 @@ function OfficerDashboardPage() {
                           setServiceDraft((current) => ({ ...current, description: event.target.value }))
                         }
                         className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
-                        placeholder="What citizens should expect from this service"
+                        placeholder="What citizens should expect from this RIB service"
                       />
                     </label>
                     <div className="flex items-end">
@@ -1158,7 +1167,7 @@ function OfficerDashboardPage() {
                         onClick={addServiceDraft}
                         className="w-full rounded-full bg-ink px-4 py-2 text-sm font-bold text-white"
                       >
-                        Add service
+                        Add RIB service
                       </button>
                     </div>
                   </div>
@@ -1184,7 +1193,7 @@ function OfficerDashboardPage() {
                       ))
                     ) : (
                       <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
-                        No service records are published yet for this institution.
+                        No service records are published yet for this RIB workflow point.
                       </article>
                     )}
                   </div>
@@ -1197,7 +1206,7 @@ function OfficerDashboardPage() {
 
                 <SectionCard
                   title="Publish QR access"
-                  subtitle="Citizens can scan one code to read institution information or continue to issue reporting."
+                  subtitle="Citizens can scan one code to read RIB workflow information or continue to issue reporting."
                 >
                   {institutionAdmin?.slug ? (
                     <InstitutionAccessQrPanel
@@ -1206,14 +1215,14 @@ function OfficerDashboardPage() {
                     />
                   ) : (
                     <article className="rounded-2xl bg-gold/25 px-4 py-4 text-sm font-semibold text-ink">
-                      This institution does not have a public access slug yet.
+                      This RIB workflow point does not have a public access slug yet.
                     </article>
                   )}
                 </SectionCard>
               </div>
 
               <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-                <SectionCard title="Add staff or leaders" subtitle="Register new institution team members and optionally create login access immediately.">
+                <SectionCard title="Add RIB staff or leads" subtitle="Register new workflow team members and optionally create login access immediately.">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-2">
                       <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Full name</span>
@@ -1262,7 +1271,7 @@ function OfficerDashboardPage() {
                         value={staffDraft.reportsTo}
                         onChange={(event) => setStaffDraft((current) => ({ ...current, reportsTo: event.target.value }))}
                         className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
-                        placeholder={institutionManagement.leader?.positionTitle ?? 'Primary institution leader'}
+                        placeholder={institutionManagement.leader?.positionTitle ?? 'Primary RIB lead'}
                       />
                     </label>
                     <label className="space-y-2">
@@ -1320,7 +1329,7 @@ function OfficerDashboardPage() {
                   </div>
                 </SectionCard>
 
-                <SectionCard title="Current staff and account access" subtitle="Review who is already listed in the institution and who can sign in to work cases.">
+                <SectionCard title="Current RIB staff and account access" subtitle="Review who is already listed in this workflow point and who can sign in to work cases.">
                   <div className="space-y-3">
                     {institutionStaffPagination.items.length > 0 ? (
                       institutionStaffPagination.items.map((employee) => (
@@ -1329,7 +1338,7 @@ function OfficerDashboardPage() {
                             <div>
                               <p className="font-semibold text-ink">
                                 {employee.fullName}
-                                {employee.isLeader ? ' | Primary leader' : ''}
+                                {employee.isLeader ? ' | Primary RIB lead' : ''}
                               </p>
                               <p className="mt-1">
                                 {employee.positionTitle}
@@ -1424,12 +1433,12 @@ function OfficerDashboardPage() {
         {activeWorkspace === 'territory' ? (
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
           <SectionCard
-            title="Province to village explorer"
-            subtitle="Filter and review institutions, services, leaders, and workers in your governance scope."
+            title="RIB workflow explorer"
+            subtitle="Filter and review workflow points, services, officers, and staff in the case-study scope."
           >
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Province</span>
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">City/Province</span>
                 <select
                   value={filters.province}
                   onChange={(event) => updateFilter('province', event.target.value)}
@@ -1445,7 +1454,7 @@ function OfficerDashboardPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">District</span>
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">District/Area</span>
                 <select
                   value={filters.district}
                   onChange={(event) => updateFilter('district', event.target.value)}
@@ -1461,7 +1470,7 @@ function OfficerDashboardPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Sector</span>
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Intake Context</span>
                 <select
                   value={filters.sector}
                   onChange={(event) => updateFilter('sector', event.target.value)}
@@ -1477,7 +1486,7 @@ function OfficerDashboardPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Cell</span>
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Evidence Context</span>
                 <select
                   value={filters.cell}
                   onChange={(event) => updateFilter('cell', event.target.value)}
@@ -1493,7 +1502,7 @@ function OfficerDashboardPage() {
               </label>
 
               <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">Village</span>
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate">QR Access Point</span>
                 <select
                   value={filters.village}
                   onChange={(event) => updateFilter('village', event.target.value)}
@@ -1523,7 +1532,7 @@ function OfficerDashboardPage() {
             {explorer ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <article className="rounded-xl bg-mist px-4 py-3 text-sm text-slate">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Institutions</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Workflow points</p>
                   <p className="mt-1 text-xl font-black text-ink">{explorer.summary.institutions}</p>
                 </article>
                 <article className="rounded-xl bg-mist px-4 py-3 text-sm text-slate">
@@ -1531,11 +1540,11 @@ function OfficerDashboardPage() {
                   <p className="mt-1 text-xl font-black text-ink">{explorer.summary.services}</p>
                 </article>
                 <article className="rounded-xl bg-mist px-4 py-3 text-sm text-slate">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Leaders</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">RIB leads</p>
                   <p className="mt-1 text-xl font-black text-ink">{explorer.summary.leaders}</p>
                 </article>
                 <article className="rounded-xl bg-mist px-4 py-3 text-sm text-slate">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Workers</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">RIB staff</p>
                   <p className="mt-1 text-xl font-black text-ink">{explorer.summary.workers}</p>
                 </article>
               </div>
@@ -1549,20 +1558,20 @@ function OfficerDashboardPage() {
             {explorer ? (
               <div className="space-y-3 text-sm text-slate">
                 <article className="rounded-xl bg-mist px-4 py-3">
-                  <p className="font-semibold text-ink">Districts ({explorer.summary.districts})</p>
-                  <p className="mt-1">{explorer.coverage.districts.join(', ') || 'No districts in current filter.'}</p>
+                  <p className="font-semibold text-ink">Investigation areas ({explorer.summary.districts})</p>
+                  <p className="mt-1">{explorer.coverage.districts.join(', ') || 'No investigation areas in current filter.'}</p>
                 </article>
                 <article className="rounded-xl bg-mist px-4 py-3">
-                  <p className="font-semibold text-ink">Sectors ({explorer.summary.sectors})</p>
-                  <p className="mt-1">{explorer.coverage.sectors.join(', ') || 'No sectors in current filter.'}</p>
+                  <p className="font-semibold text-ink">Intake contexts ({explorer.summary.sectors})</p>
+                  <p className="mt-1">{explorer.coverage.sectors.join(', ') || 'No intake contexts in current filter.'}</p>
                 </article>
                 <article className="rounded-xl bg-mist px-4 py-3">
-                  <p className="font-semibold text-ink">Cells ({explorer.summary.cells})</p>
-                  <p className="mt-1">{explorer.coverage.cells.join(', ') || 'No cells in current filter.'}</p>
+                  <p className="font-semibold text-ink">Evidence contexts ({explorer.summary.cells})</p>
+                  <p className="mt-1">{explorer.coverage.cells.join(', ') || 'No evidence contexts in current filter.'}</p>
                 </article>
                 <article className="rounded-xl bg-mist px-4 py-3">
-                  <p className="font-semibold text-ink">Villages ({explorer.summary.villages})</p>
-                  <p className="mt-1">{explorer.coverage.villages.join(', ') || 'No villages in current filter.'}</p>
+                  <p className="font-semibold text-ink">QR access points ({explorer.summary.villages})</p>
+                  <p className="mt-1">{explorer.coverage.villages.join(', ') || 'No QR access points in current filter.'}</p>
                 </article>
               </div>
             ) : (
@@ -1576,7 +1585,7 @@ function OfficerDashboardPage() {
 
         {activeWorkspace === 'territory' && explorer ? (
           <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
-            <SectionCard title="Leaders in scope" subtitle="All leaders from province to village in selected filter.">
+            <SectionCard title="RIB leads in scope" subtitle="Workflow leads visible in the selected filter.">
               <div className="space-y-3">
                 {leadersPagination.items.length > 0 ? (
                   leadersPagination.items.map((item) => (
@@ -1588,7 +1597,7 @@ function OfficerDashboardPage() {
                   ))
                 ) : (
                   <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                    No leaders found in this filter.
+                    No RIB leads found in this filter.
                   </article>
                 )}
               </div>
@@ -1599,7 +1608,7 @@ function OfficerDashboardPage() {
               />
             </SectionCard>
 
-            <SectionCard title="Workers in scope" subtitle="Staff members registered under filtered institutions.">
+            <SectionCard title="RIB staff in scope" subtitle="Staff members registered under filtered workflow points.">
               <div className="space-y-3">
                 {workersPagination.items.length > 0 ? (
                   workersPagination.items.map((item) => (
@@ -1611,7 +1620,7 @@ function OfficerDashboardPage() {
                   ))
                 ) : (
                   <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                    No workers found in this filter.
+                    No RIB staff found in this filter.
                   </article>
                 )}
               </div>
@@ -1626,7 +1635,7 @@ function OfficerDashboardPage() {
 
         {activeWorkspace === 'territory' && explorer ? (
           <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1fr]">
-            <SectionCard title="Services in scope" subtitle="All services provided by filtered institutions.">
+            <SectionCard title="RIB services in scope" subtitle="All services provided by filtered workflow points.">
               <div className="space-y-3">
                 {servicesPagination.items.length > 0 ? (
                   servicesPagination.items.map((item, index) => (
@@ -1635,13 +1644,13 @@ function OfficerDashboardPage() {
                       className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate"
                     >
                       <p className="font-semibold text-ink">{item.name}</p>
-                      <p className="mt-1">{item.institutionName} ({item.level})</p>
+                      <p className="mt-1">{item.institutionName} ({formatLevel(item.level)})</p>
                       {item.description ? <p className="mt-1">{item.description}</p> : null}
                     </article>
                   ))
                 ) : (
                   <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                    No services found in this filter.
+                    No RIB services found in this filter.
                   </article>
                 )}
               </div>
@@ -1652,14 +1661,14 @@ function OfficerDashboardPage() {
               />
             </SectionCard>
 
-            <SectionCard title="Institutions in scope" subtitle="Hierarchy units available under current filters.">
+            <SectionCard title="Workflow points in scope" subtitle="RIB workflow units available under current filters.">
               <div className="space-y-3">
                 {institutionsPagination.items.length > 0 ? (
                   institutionsPagination.items.map((item) => (
                     <article key={item.institutionId} className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
                       <p className="font-semibold text-ink">{item.institutionName}</p>
                       <p className="mt-1">
-                        {item.level} | Services: {item.servicesCount} | Staff: {item.employeeCount}
+                        {formatLevel(item.level)} | Services: {item.servicesCount} | Staff: {item.employeeCount}
                       </p>
                       {item.childUnitLabel ? (
                         <p className="mt-1">
@@ -1694,7 +1703,7 @@ function OfficerDashboardPage() {
                     <p className="font-semibold text-ink">
                       {item.id} | {item.category}
                     </p>
-                    <p className="mt-1">{item.institution} ({item.currentLevel})</p>
+                    <p className="mt-1">{item.institution} ({formatLevel(item.currentLevel)})</p>
                     <p className="mt-1 leading-6">{item.message}</p>
                     <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-tide">
                       Deadline: {formatDateTime(item.deadlineAt)}
@@ -1703,7 +1712,7 @@ function OfficerDashboardPage() {
                 ))
               ) : (
                 <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                  No direct tagged issues yet.
+                  No directly tagged RIB reports yet.
                 </article>
               )}
             </div>
@@ -1714,7 +1723,7 @@ function OfficerDashboardPage() {
             />
           </SectionCard>
 
-          <SectionCard title="Notifications" subtitle="Latest complaint alerts sent to this leader account.">
+          <SectionCard title="Notifications" subtitle="Latest complaint alerts sent to this RIB account.">
             <div className="space-y-3">
               {notificationsPagination.items.length > 0 ? (
                 notificationsPagination.items.map((item) => (

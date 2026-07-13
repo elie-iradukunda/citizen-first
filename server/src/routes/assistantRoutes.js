@@ -1,12 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { emergencyContacts, issueRoutingGuide, publicServices } from '../data/publicServiceData.js';
-import {
-  GOVERNMENT_LEVELS,
-  NEXT_LEVEL_MAP,
-  POSITION_TEMPLATES,
-  RWANDA_ADMINISTRATIVE_STRUCTURE,
-} from '../data/registrationData.js';
 
 const router = Router();
 
@@ -44,12 +38,12 @@ function buildFallbackAnswer({ question, sector, district }) {
     ? `Recommended office: ${route.recommendedOffice}.`
     : service
       ? `Recommended office: ${service.primaryOffice}.`
-      : 'Recommended office: start at your Cell office or Sector front desk for guided routing.';
+      : 'Recommended office: start with the RIB Anti-Corruption Intake Desk or the QR reporting form.';
 
   const locationHint = [sector, district].filter(Boolean).join(', ');
   const locationLine = locationHint
-    ? `Location context: prioritize the service desk in ${locationHint}.`
-    : 'Location context: share your sector or district for more precise office guidance.';
+    ? `Location context: use ${locationHint} as the case location when submitting the report.`
+    : 'Location context: share the district or area where the incident happened for more precise guidance.';
 
   const actionLine = route
     ? `First action: ${route.firstAction}`
@@ -59,11 +53,11 @@ function buildFallbackAnswer({ question, sector, district }) {
 
   const escalationLine = route
     ? `Escalation path: ${route.escalationPath.join(' -> ')}.`
-    : 'Escalation path: Cell -> Sector -> District -> Province when no response is given.';
+    : 'Escalation path: QR Access -> Evidence Triage -> RIB Intake -> Investigation Review -> Supervisory Review -> National Oversight.';
 
   const docsLine = service
     ? `Required Information/Documents: ${service.requirements.join(', ')}`
-    : 'Required Information/Documents: National ID, service request details, institution name, and evidence where available.';
+    : 'Required Information/Documents: incident date, location, office or person involved, requested amount if any, and evidence where available.';
 
   return [
     `Direct Answer: Based on your question, here is the safest route.`,
@@ -94,47 +88,32 @@ function buildSystemPrompt({ question, sector, district, language }) {
     .map((contact) => `- ${contact.title}: ${contact.number}`)
     .join('\n');
 
-  const hierarchyRules = Object.entries(NEXT_LEVEL_MAP)
-    .map(([role, nextLevel]) => `- ${role} can invite ${nextLevel ?? 'no next level'}`)
-    .join('\n');
-
-  const levelTemplates = Object.entries(POSITION_TEMPLATES)
-    .map(
-      ([level, template]) =>
-        `- ${level}: title=${template.title}; kinyarwanda=${template.titleKinyarwanda}; reports_to=${template.reportsTo}`,
-    )
-    .join('\n');
-
-  const provinceSummary = RWANDA_ADMINISTRATIVE_STRUCTURE.map(
-    (entry) => `${entry.province} (${entry.districts.length} districts)`,
-  ).join(', ');
-
   const platformKnowledge = `
 Platform capabilities:
-- Citizens register with location: country -> province -> district -> sector -> cell -> village.
-- Institution registration is secure and invite-only.
-- Hierarchical flow: National admin -> Province -> District -> Sector -> Cell -> Village.
-- Leaders register departments and employees after institution onboarding.
-- System generates QR code after institution registration.
+- Citizens can submit anonymous or verified corruption reports.
+- Case-study institution: Rwanda Investigation Bureau (RIB), Kigali, Rwanda.
+- Workflow: Public QR Access -> Evidence Triage -> RIB Anti-Corruption Intake -> Investigation Review -> Supervisory Review -> National Oversight.
+- RIB workflow users register departments, staff, and reporting services after invite-only onboarding.
+- The system generates QR access after workflow-point registration.
 - Dashboard access requires login with access key.
-- Emergency pages and reporting pages are available to the public.
+- Public pages include hotlines, RIB services, reporting, tracking, and assistant guidance.
 `;
 
   return `
-You are Citizen First AI Assistant for Rwanda public service guidance.
-You must provide practical, lawful, and safe guidance for citizens.
+You are Citizen First AI Assistant for the RIB anti-corruption and citizen feedback case study.
+You must provide practical, lawful, and safe reporting guidance for citizens.
 
 Rules:
 1. Answer in ${language === 'rw' ? 'Kinyarwanda' : 'English'}.
 2. If question is related to danger, abuse, or corruption, include the most relevant hotline number.
 3. Always include:
-   - who can solve the issue first (office)
+   - who can receive or review the report first (RIB workflow point)
    - next steps
-   - what documents or information to prepare
+   - what evidence or information to prepare
    - escalation path when no response is given
-4. If the question is about registration, explain required fields and hierarchy clearly.
+4. If the question is about registration, explain required fields and RIB workflow stages clearly.
 5. Never invent laws, prices, district names, contacts, or technical features. If unknown, say so and give a safe next step.
-6. If exact fee is unknown, advise checking official notice board and official payment channels.
+6. Remind citizens that corruption reporting through this platform is free.
 7. Use this response format:
    - Direct Answer
    - Recommended Office
@@ -145,20 +124,8 @@ Rules:
 8. Keep answer concise, practical, and respectful.
 
 Citizen location context:
-- Sector: ${sector ?? 'not provided'}
-- District: ${district ?? 'not provided'}
-
-Rwanda governance levels:
-- ${GOVERNMENT_LEVELS.join(' -> ')}
-
-Role invite rules:
-${hierarchyRules}
-
-Official position templates:
-${levelTemplates}
-
-Province summary:
-${provinceSummary}
+- Sector/context: ${sector ?? 'not provided'}
+- District/area: ${district ?? 'not provided'}
 
 ${platformKnowledge}
 

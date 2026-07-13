@@ -2,6 +2,9 @@ import assistantRoutes from './routes/assistantRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import cors from 'cors';
 import express from 'express';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import complaintRoutes from './routes/complaintRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
@@ -11,6 +14,9 @@ import publicInfoRoutes from './routes/publicInfoRoutes.js';
 import registrationRoutes from './routes/registrationRoutes.js';
 
 const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+const clientIndexPath = path.join(clientDistPath, 'index.html');
 
 app.use(
   cors({
@@ -36,6 +42,13 @@ app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/public', publicInfoRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/registration', registrationRoutes);
+
+if (existsSync(clientIndexPath)) {
+  app.use(express.static(clientDistPath));
+  app.get(/^\/(?!api(?:\/|$)).*/, (_request, response) => {
+    response.sendFile(clientIndexPath);
+  });
+}
 
 app.use((error, _request, response, _next) => {
   console.error(error);

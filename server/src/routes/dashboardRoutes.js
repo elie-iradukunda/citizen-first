@@ -63,87 +63,87 @@ const LEVEL_SCOPE = {
 };
 const LEVEL_MANAGEMENT_PLAYBOOK = {
   province: {
-    title: 'Province Leadership Dashboard',
-    scopeLabel: 'Province-wide governance supervision',
+    title: 'RIB Supervisory Review Dashboard',
+    scopeLabel: 'Escalated and sensitive corruption-case supervision',
     responsibilities: [
-      'Register and monitor district institutions under the province.',
-      'Review overdue and escalated district complaints.',
-      'Track district SLA performance and integrity alerts.',
+      'Review overdue or sensitive reports escalated from investigation teams.',
+      'Monitor RIB response quality, confidentiality, and deadline compliance.',
+      'Coordinate supervisory decisions for unresolved corruption concerns.',
     ],
     requiredDecisions: [
-      'Approve district escalation interventions.',
-      'Issue compliance directives to district leaders.',
-      'Report critical trends to national oversight.',
+      'Approve supervisory intervention for high-risk reports.',
+      'Direct investigation teams on unresolved or repeated integrity patterns.',
+      'Report critical trends to RIB national oversight.',
     ],
   },
   district: {
-    title: 'District Leadership Dashboard',
-    scopeLabel: 'District operations and sector oversight',
+    title: 'RIB Investigation Review Dashboard',
+    scopeLabel: 'Economic and financial crimes investigation workflow',
     responsibilities: [
-      'Invite and onboard sector institutions.',
-      'Supervise sector complaint handling and deadlines.',
-      'Coordinate investigation quality across sectors.',
+      'Review corruption reports forwarded by the RIB intake desk.',
+      'Coordinate evidence-based investigation actions and officer feedback.',
+      'Monitor deadlines for cases requiring independent investigation review.',
     ],
     requiredDecisions: [
-      'Assign high-risk complaints for immediate review.',
-      'Escalate unresolved sector cases to province.',
-      'Validate service-fee transparency compliance.',
+      'Assign high-risk reports for immediate investigation follow-up.',
+      'Escalate unresolved cases to supervisory review.',
+      'Validate whether submitted evidence supports further action.',
     ],
   },
   sector: {
-    title: 'Sector Leadership Dashboard',
-    scopeLabel: 'Sector service quality and cell supervision',
+    title: 'RIB Anti-Corruption Intake Dashboard',
+    scopeLabel: 'Citizen report intake and first review',
     responsibilities: [
-      'Invite and onboard cell institutions.',
-      'Monitor cell-level complaint response timelines.',
-      'Support cell teams on sensitive corruption cases.',
+      'Receive QR-based corruption reports and citizen feedback.',
+      'Check completeness, confidentiality needs, and urgency.',
+      'Route valid cases to evidence triage, investigation, or supervisory review.',
     ],
     requiredDecisions: [
-      'Escalate unresolved cell complaints to district.',
-      'Balance case workload across cell teams.',
-      'Enforce citizen communication standards.',
+      'Classify the report as bribery, abuse of authority, unofficial fee, or follow-up.',
+      'Assign an officer and set the response path.',
+      'Send cases with higher risk to investigation review.',
     ],
   },
   cell: {
-    title: 'Cell Leadership Dashboard',
-    scopeLabel: 'Cell frontline complaint operations',
+    title: 'RIB Evidence Triage Dashboard',
+    scopeLabel: 'Evidence preservation and case preparation',
     responsibilities: [
-      'Invite and onboard village institutions.',
-      'Handle first-line complaints and provide timely responses.',
-      'Maintain accurate citizen follow-up and evidence records.',
+      'Check screenshots, documents, receipts, and voice notes.',
+      'Preserve evidence metadata for responsible review.',
+      'Prepare reports before they move to RIB intake or investigation.',
     ],
     requiredDecisions: [
-      'Prioritize urgent complaints before SLA breach.',
-      'Escalate unresolved cases to sector in time.',
-      'Ensure each case has traceable response notes.',
+      'Request clearer evidence when a report is incomplete.',
+      'Flag sensitive evidence for controlled visibility.',
+      'Escalate evidence-backed reports to RIB intake in time.',
     ],
   },
   village: {
-    title: 'Village Leadership Dashboard',
-    scopeLabel: 'Village-level citizen coordination',
+    title: 'RIB Public QR Access Dashboard',
+    scopeLabel: 'Citizen access and reporting guidance',
     responsibilities: [
-      'Support citizen reporting and route complaints correctly.',
-      'Track open local complaints and status updates.',
-      'Coordinate with cell office on unresolved citizen issues.',
+      'Maintain public QR access for corruption reporting.',
+      'Guide citizens to the correct RIB reporting form.',
+      'Support safe reporting without forcing physical office visits.',
     ],
     requiredDecisions: [
-      'Identify cases needing immediate cell attention.',
-      'Verify complaint details before escalation.',
-      'Keep citizens informed on next steps.',
+      'Identify reports needing evidence triage.',
+      'Protect the citizen from unnecessary exposure.',
+      'Keep reporting guidance simple and accessible.',
     ],
   },
   national: {
-    title: 'National Oversight Operations',
-    scopeLabel: 'Countrywide governance and integrity monitoring',
+    title: 'RIB National Oversight Operations',
+    scopeLabel: 'Institution-wide anti-corruption monitoring',
     responsibilities: [
-      'Monitor institution performance across all levels.',
-      'Track escalation trends and SLA compliance nationwide.',
-      'Set policy direction for accountability and transparency.',
+      'Monitor RIB case trends, escalation volume, and SLA compliance.',
+      'Review dashboard signals for unresolved corruption concerns.',
+      'Set accountability direction for the QR-enabled feedback workflow.',
     ],
     requiredDecisions: [
       'Intervene on critical systemic integrity incidents.',
-      'Authorize strategic corrective actions for provinces.',
-      'Publish national governance quality reports.',
+      'Authorize corrective action for repeated workflow failure.',
+      'Use reporting analytics to improve anti-corruption response.',
     ],
   },
 };
@@ -812,7 +812,7 @@ function getLeaderChainByCitizenLocation(location = {}) {
 
   return levels
     .map((level) => {
-      const institution = registeredInstitutions.find((entry) => {
+      const candidateInstitutions = registeredInstitutions.filter((entry) => {
         if (entry.level !== level) {
           return false;
         }
@@ -834,6 +834,12 @@ function getLeaderChainByCitizenLocation(location = {}) {
         }
         return true;
       });
+      const institution =
+        candidateInstitutions.find(
+          (entry) =>
+            entry.institutionId?.startsWith('RIB-') ||
+            entry.institutionName?.startsWith('RIB '),
+        ) ?? candidateInstitutions[0];
 
       if (!institution) {
         return null;
@@ -1168,8 +1174,10 @@ function findSystemUserByAssignmentId(assignmentId) {
 
 function buildNationalReviewDestination() {
   const nationalUser =
-    systemUsers.find((entry) => entry.role === 'national_admin') ??
+    systemUsers.find((entry) => entry.institutionId === 'RIB-NATIONAL') ??
+    systemUsers.find((entry) => entry.role === 'oversight_admin') ??
     systemUsers.find((entry) => ADMIN_DASHBOARD_ROLES.has(entry.role)) ??
+    systemUsers.find((entry) => entry.role === 'national_admin') ??
     null;
 
   if (!nationalUser) {
@@ -1178,10 +1186,10 @@ function buildNationalReviewDestination() {
 
   return {
     level: 'national',
-    slug: 'national-governance-platform',
-    institutionId: NATIONAL_ROOT_ID,
-    institutionName: 'National Governance Platform',
-    officeAddress: 'National governance command center',
+    slug: 'rib-national-oversight-command',
+    institutionId: 'RIB-NATIONAL',
+    institutionName: 'RIB National Oversight Command',
+    officeAddress: 'RIB oversight command center, Kigali',
     officialEmail: nationalUser.email ?? null,
     officialPhone: nationalUser.phone ?? null,
     location: {
@@ -1195,10 +1203,10 @@ function buildNationalReviewDestination() {
       nationalId: nationalUser.nationalId ?? null,
       phone: nationalUser.phone ?? null,
       email: nationalUser.email ?? null,
-      positionTitle: 'National Admin',
+      positionTitle: 'RIB National Oversight Admin',
       positionKinyarwanda: '',
-      reportsTo: 'National governance command',
-      description: 'National oversight and final review for escalated citizen complaints.',
+      reportsTo: 'RIB national command',
+      description: 'Final oversight review for escalated anti-corruption and citizen feedback cases.',
     },
   };
 }
@@ -1288,11 +1296,11 @@ function buildCitizenExplorer(rawFilters = {}) {
     complaintTargetLeaders,
     complaintRoutingGuide: {
       serviceIssue:
-        'Choose the service institution or the public leader who should respond first. A response is expected within 3 working days.',
+        'Choose the RIB service point or officer who should respond first. A response is expected within 3 working days.',
       corruptionIssue:
-        'Choose the accused leader. The report is automatically routed to the next higher level for independent review.',
+        'Choose the RIB staff member or workflow stage being reported. The case is routed to the next independent review stage.',
       escalationWindow:
-        'If there is no response in 3 working days the case escalates automatically. If you receive feedback and are not satisfied, you can escalate it yourself.',
+        'If there is no response in 3 working days, the case can move to investigation or supervisory review. If feedback is not satisfactory, the citizen can request escalation.',
     },
   };
 }
@@ -1552,19 +1560,19 @@ function buildCitizenDashboard(user) {
     })),
     awareness: [
       {
-        title: 'Verified identity follows the case',
+        title: 'Identity is protected by workflow rules',
         description:
-          'Your citizen ID, phone, email, and village location are attached internally for accountable follow-up.',
+          'Verified reports keep contact details for follow-up, while anonymous reports reduce citizen exposure during sensitive corruption reporting.',
       },
       {
-        title: 'Corruption goes to the next level',
+        title: 'Corruption reports move independently',
         description:
-          'If you accuse a village leader, the complaint is routed to cell review. The same pattern applies up the hierarchy.',
+          'Reports can move from QR access to evidence triage, RIB intake, investigation review, supervisory review, and national oversight.',
       },
       {
         title: 'Escalation stays visible',
         description:
-          'If no feedback comes within 3 working days the case escalates automatically. If feedback is unsatisfactory, you can escalate it yourself.',
+          'If no feedback comes within 3 working days the case remains visible for escalation. If feedback is unsatisfactory, you can request further review.',
       },
     ],
   };
@@ -2062,19 +2070,19 @@ function buildAdminDashboard() {
     generatedAt: new Date().toISOString(),
     kpis: [
       {
-        label: 'Registered institutions',
+        label: 'Registered RIB workflow points',
         value: hierarchyStats.totalInstitutions,
-        note: 'All hierarchy offices currently connected to the platform.',
+        note: 'QR access, triage, intake, investigation, review, and oversight records connected to the platform.',
       },
       {
-        label: 'Registered leaders',
+        label: 'Registered RIB users',
         value: leadersCount,
-        note: 'Leadership accounts available across province to village.',
+        note: 'Officer and oversight accounts available across the workflow.',
       },
       {
         label: 'Total issues raised',
         value: allCases.length,
-        note: 'All complaint records captured in the national monitoring dataset.',
+        note: 'All RIB case-study complaint records captured in the monitoring dataset.',
       },
       {
         label: 'Active issues',
@@ -2087,9 +2095,9 @@ function buildAdminDashboard() {
         note: 'Bribery and unofficial fee complaints requiring integrity oversight.',
       },
       {
-        label: 'Provinces reporting',
+        label: 'Reporting areas active',
         value: `${provincesWithCases}/${RWANDA_ADMINISTRATIVE_STRUCTURE.length}`,
-        note: 'Provinces currently represented in the live complaint feed.',
+        note: 'Geographic areas represented in the live RIB complaint feed.',
       },
       {
         label: 'Pending invites',
@@ -2116,8 +2124,8 @@ function buildAdminDashboard() {
       {
         severity:
           hierarchyStats.registeredProvinces < hierarchyStats.expectedProvinces ? 'medium' : 'normal',
-        title: 'Province coverage gap',
-        detail: `${hierarchyStats.registeredProvinces} of ${hierarchyStats.expectedProvinces} province offices are registered in the governance chain.`,
+        title: 'Workflow coverage gap',
+        detail: `${hierarchyStats.registeredProvinces} supervisory workflow records are active against ${hierarchyStats.expectedProvinces} expected coverage areas.`,
       },
       {
         severity: expiringSoonInvites.length > 0 ? 'medium' : 'normal',
@@ -2127,24 +2135,24 @@ function buildAdminDashboard() {
     ],
     nationalCoverage: [
       {
-        label: 'Province offices',
+        label: 'Supervisory review points',
         value: `${hierarchyStats.registeredProvinces}/${hierarchyStats.expectedProvinces}`,
-        note: 'Registered province institutions compared with the national expectation.',
+        note: 'Registered supervisory review records compared with the coverage expectation.',
       },
       {
-        label: 'District offices',
+        label: 'Investigation review points',
         value: hierarchyStats.byLevel.district,
-        note: 'District institutions currently linked under provinces.',
+        note: 'Investigation records currently linked under supervisory review.',
       },
       {
-        label: 'Sector offices',
+        label: 'Intake points',
         value: hierarchyStats.byLevel.sector,
-        note: 'Sector institutions available in the registered governance tree.',
+        note: 'RIB intake records available in the registered workflow tree.',
       },
       {
         label: 'Staff accounts',
         value: institutionEmployees.length,
-        note: 'Leaders and staff registered across all institutions.',
+        note: 'RIB leaders and staff registered across all workflow points.',
       },
       {
         label: 'Live escalation rate',
@@ -2154,7 +2162,7 @@ function buildAdminDashboard() {
       {
         label: 'Response window',
         value: '3 days',
-        note: 'Working-day SLA monitored by the national admin dashboard.',
+        note: 'Working-day SLA monitored by the RIB oversight dashboard.',
       },
     ],
     institutionPerformance,
@@ -2172,7 +2180,7 @@ function buildAdminDashboard() {
       {
         title: 'Privacy-ready submissions',
         value: `${allCases.filter((item) => item.reportingMode === 'anonymous').length}`,
-        note: 'Anonymous reports currently in national system scope.',
+        note: 'Anonymous reports currently in RIB case-study scope.',
       },
       {
         title: 'Evidence-backed reports',

@@ -38,8 +38,8 @@ function PublicServicesPage() {
       <div className="bg-mist">
         <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
           <DashboardState
-            title="Loading services"
-            description="Preparing the public service catalog and institution routing guidance."
+            title="Loading RIB services"
+            description="Preparing the RIB reporting service catalog and workflow routing guidance."
           />
         </section>
       </div>
@@ -51,8 +51,8 @@ function PublicServicesPage() {
       <div className="bg-mist">
         <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
           <DashboardState
-            title="Services unavailable"
-            description="Public service data could not be loaded. Please verify the API and try again."
+            title="RIB services unavailable"
+            description="RIB reporting service data could not be loaded. Please verify the API and try again."
           />
         </section>
       </div>
@@ -62,12 +62,12 @@ function PublicServicesPage() {
   return (
     <div className="bg-mist">
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
-        <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">Public Services</p>
+        <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">RIB Services</p>
         <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
-          Service guidance for local institutions
+          Reporting services for the RIB case study
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate">
-          Citizens can check where to go, expected processing time, and what documents to prepare before visiting an office.
+          Citizens can check which RIB workflow point receives a report, what evidence to prepare, and how escalation works.
         </p>
 
         <div className="mt-10 grid gap-6">

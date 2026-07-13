@@ -31,8 +31,8 @@ function Navbar() {
       <div className="bg-ink text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs lg:px-8">
           <div className="flex flex-wrap items-center gap-4">
-            <span className="font-semibold uppercase tracking-[0.12em] text-gold">Citizen First</span>
-            <span>Public Service Support Portal</span>
+            <span className="font-semibold uppercase tracking-[0.12em] text-gold">RIB Case Study Platform</span>
+            <span>QR Reporting - Evidence - Accountability</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
@@ -56,10 +56,10 @@ function Navbar() {
           </div>
           <div>
             <p className="font-display text-lg font-black uppercase tracking-[0.06em] text-ink">
-              Citizen First
+              RIB Citizen Feedback
             </p>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">
-              Service - Protection - Integrity
+              Anti-Corruption - QR Access - Oversight
             </p>
           </div>
         </Link>
@@ -95,7 +95,7 @@ function Navbar() {
                 to="/register/citizen"
                 className="hidden rounded-full border border-ink/20 bg-white px-4 py-3 text-sm font-bold text-ink transition hover:bg-mist md:inline-flex"
               >
-                Join
+                Register
               </Link>
               <Link
                 to="/login?redirect=%2Fdashboards"

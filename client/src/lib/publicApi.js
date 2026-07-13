@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, options);
@@ -30,4 +30,18 @@ export function askCitizenAssistant(payload) {
     },
     body: JSON.stringify(payload),
   });
+}
+
+export function createPublicComplaint(payload) {
+  return request('/api/complaints', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchPublicComplaint(caseId) {
+  return request(`/api/complaints/${encodeURIComponent(caseId)}`);
 }

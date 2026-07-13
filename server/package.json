@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
     "build": "node ./scripts/build-placeholder.js",
     "lint": "node ./scripts/lint-placeholder.js"
   },

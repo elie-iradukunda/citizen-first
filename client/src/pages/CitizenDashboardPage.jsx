@@ -16,16 +16,22 @@ import {
 import { formatDateTime } from '../lib/time';
 
 const VIEW_MODES = {
-  overview: 'Citizen follow-up, visibility, and trusted escalation',
-  submit: 'Report service gaps or corruption with full routing clarity',
-  services: 'Explore services, official fees, and who can help you',
-  leaders: 'See your leadership chain from village up to province',
+  overview: 'Citizen follow-up, visibility, and trusted RIB escalation',
+  submit: 'Report corruption concerns or feedback with full routing clarity',
+  services: 'Explore RIB services, evidence support, and who can help you',
+  leaders: 'See RIB workflow roles from QR access to oversight',
 };
 
 const LEVEL_FLOW = ['village', 'cell', 'sector', 'district', 'province', 'national'];
 const ISSUE_CATEGORY_OPTIONS = {
-  service_issue: ['Delayed service', 'Missing response', 'Service denial', 'Other service issue'],
-  corruption_issue: ['Bribery request', 'Unknown service fee', 'Abuse of authority', 'Other corruption issue'],
+  service_issue: ['Missing response', 'Case status request', 'Evidence correction', 'Other reporting support'],
+  corruption_issue: [
+    'Bribery request',
+    'Unknown service fee',
+    'Abuse of authority',
+    'Intimidation or retaliation risk',
+    'Other corruption issue',
+  ],
 };
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 const MAX_AUDIO_SIZE_BYTES = 4 * 1024 * 1024;
@@ -85,7 +91,18 @@ function formatCurrency(value) {
 }
 
 function formatLevel(level = '') {
-  return level ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()) : 'Unknown';
+  const workflowLabels = {
+    village: 'QR Access',
+    cell: 'Evidence Triage',
+    sector: 'RIB Intake',
+    district: 'Investigation Review',
+    province: 'Supervisory Review',
+    national: 'National Oversight',
+    anonymous: 'Anonymous',
+    verified: 'Verified',
+  };
+
+  return workflowLabels[level] ?? (level ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()) : 'Unknown');
 }
 
 function formatLocation(location = {}) {
@@ -634,7 +651,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
 
   const submitSection = (
     <div className="mt-8 grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
-      <SectionCard title="Submit complaint" subtitle="Choose whether this is a service problem or a corruption report.">
+      <SectionCard title="Submit RIB report" subtitle="Choose whether this is a citizen feedback issue or a corruption report.">
         <form className="space-y-5" onSubmit={submitComplaint}>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-2">
@@ -658,7 +675,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                 }}
                 className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
               >
-                <option value="service_issue">Service issue</option>
+                <option value="service_issue">Citizen feedback issue</option>
                 <option value="corruption_issue">Corruption issue</option>
               </select>
             </label>
@@ -705,7 +722,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                 }
                 className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
               >
-                <option value="">General leadership complaint</option>
+                <option value="">General RIB workflow complaint</option>
                 {allInstitutions.map((item) => (
                   <option key={item.institutionSlug} value={item.institutionSlug}>
                     {item.institutionName} ({formatLevel(item.level)})
@@ -745,14 +762,14 @@ function CitizenDashboardPage({ mode = 'overview' }) {
 
           {complaintForm.issueType === 'service_issue' ? (
             <div className="space-y-3 rounded-2xl bg-mist p-4">
-              <p className="text-sm font-semibold text-ink">Who should handle this service issue first?</p>
+              <p className="text-sm font-semibold text-ink">Who should handle this citizen feedback issue first?</p>
               <select
                 value={complaintForm.targetLeaderEmployeeId}
                 onChange={(event) => updateComplaintField('targetLeaderEmployeeId', event.target.value)}
                 className="w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-sm outline-none focus:border-tide"
                 required
               >
-                <option value="">Select receiving leader</option>
+                <option value="">Select receiving RIB role</option>
                 {complaintTargets.map((item) => (
                   <option key={item.leader.employeeId} value={item.leader.employeeId}>
                     {item.leader.fullName} ({formatLevel(item.level)} - {item.institutionName})
@@ -761,8 +778,8 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               </select>
               {selectedTarget ? (
                 <p className="text-sm text-slate">
-                  Routed to <span className="font-semibold text-ink">{selectedTarget.leader.fullName}</span> at the{' '}
-                  <span className="font-semibold text-ink">{formatLevel(selectedTarget.level)}</span> level.
+                  Routed to <span className="font-semibold text-ink">{selectedTarget.leader.fullName}</span> in{' '}
+                  <span className="font-semibold text-ink">{formatLevel(selectedTarget.level)}</span>.
                 </p>
               ) : null}
             </div>
@@ -770,8 +787,8 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             <div className="space-y-3 rounded-2xl bg-mist p-4">
               <p className="text-sm font-semibold text-ink">
                 {hasInstitutionSpecificAccusedOptions
-                  ? `Choose the exact official from ${selectedInstitution?.institutionName}. The system routes the case to the next higher level.`
-                  : 'Choose the accused leader. The system routes the case to the next higher level.'}
+                  ? `Choose the exact RIB official from ${selectedInstitution?.institutionName}. The system routes the case to the next independent review stage.`
+                  : 'Choose the accused RIB role. The system routes the case to the next independent review stage.'}
               </p>
               {hasInstitutionSpecificAccusedOptions ? (
                 <p className="text-sm text-slate">
@@ -797,7 +814,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                       </p>
                       {item.leader.reportsTo ? <p className="mt-1 text-xs text-slate">Reports to: {item.leader.reportsTo}</p> : null}
                       <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-tide">
-                        {formatLevel(item.level)} {item.leader.isLeader ? '| Institution leader' : '| Institution official'}
+                        {formatLevel(item.level)} {item.leader.isLeader ? '| RIB lead' : '| RIB official'}
                       </p>
                     </button>
                   );
@@ -820,7 +837,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               {selectedAccusedLeaders.length > 0 ? (
                 <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate">
                   <p className="font-semibold text-ink">
-                    Selected accused official{selectedAccusedLeaders.length === 1 ? '' : 's'}
+                    Selected reported RIB official{selectedAccusedLeaders.length === 1 ? '' : 's'}
                   </p>
                   <p className="mt-1">
                     {selectedAccusedLeaders
@@ -839,7 +856,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               value={complaintForm.message}
               onChange={(event) => updateComplaintField('message', event.target.value)}
               className="w-full rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm outline-none focus:border-tide"
-              placeholder="Write what happened, where it happened, and which leader or office was involved."
+              placeholder="Write what happened, where it happened, which RIB office or workflow stage was involved, and what evidence is available."
               required
             />
           </label>
@@ -878,7 +895,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             <div className="rounded-2xl bg-mist p-4">
               <p className="text-sm font-semibold text-ink">Optional voice note</p>
               <p className="mt-1 text-sm text-slate">
-                Record up to 3 minutes so the reviewing leader can hear your explanation clearly.
+                Record up to 3 minutes so the reviewing RIB officer can hear your explanation clearly.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 {!isRecordingVoice ? (
@@ -944,12 +961,12 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             disabled={isSubmitting || isRecordingVoice}
             className="rounded-full bg-ink px-5 py-3 text-sm font-bold text-white disabled:opacity-70"
           >
-            {isSubmitting ? 'Submitting...' : isRecordingVoice ? 'Stop recording first' : 'Submit complaint'}
+            {isSubmitting ? 'Submitting...' : isRecordingVoice ? 'Stop recording first' : 'Submit RIB report'}
           </button>
         </form>
       </SectionCard>
 
-      <SectionCard title="Selected institution and QR support" subtitle="Service office details, leader support, and QR-linked reporting source.">
+      <SectionCard title="Selected RIB source and QR support" subtitle="Workflow details, officer support, and QR-linked reporting source.">
         <div className="space-y-4 text-sm text-slate">
           {selectedInstitution ? (
             <>
@@ -965,7 +982,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               </article>
               {selectedInstitution.helpLeader ? (
                 <article className="rounded-2xl bg-mist px-4 py-4">
-                  <p className="font-semibold text-ink">Leader who can help</p>
+                  <p className="font-semibold text-ink">RIB officer who can help</p>
                   <p className="mt-1">
                     {selectedInstitution.helpLeader.fullName} ({selectedInstitution.helpLeader.positionTitle})
                   </p>
@@ -973,11 +990,11 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               ) : null}
               {selectedInstitution.accountabilityContacts?.length > 0 ? (
                 <article className="rounded-2xl bg-mist px-4 py-4">
-                  <p className="font-semibold text-ink">Named institution officials</p>
+                  <p className="font-semibold text-ink">Named RIB officials</p>
                   <p className="mt-1">
                     {selectedInstitution.accountabilityContacts.length} registered official
                     {selectedInstitution.accountabilityContacts.length === 1 ? '' : 's'} can be selected when
-                    reporting corruption for this institution.
+                    reporting corruption for this RIB workflow point.
                   </p>
                 </article>
               ) : null}
@@ -994,11 +1011,11 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             </>
           ) : (
             <article className="rounded-2xl bg-mist px-4 py-4">
-              Choose an institution if this complaint started from a service office or QR code.
+              Choose a RIB workflow point if this report started from a QR code or specific RIB source.
             </article>
           )}
           <article className="rounded-2xl border border-gold/30 bg-gold/15 px-4 py-4 text-ink">
-            If a village leader is accused of corruption, the case goes to cell review first. If no response comes within 3 working days, the complaint escalates automatically.
+            If a RIB workflow user is reported, the case moves to the next independent review stage. If no response comes within 3 working days, the case remains visible for escalation.
           </article>
         </div>
       </SectionCard>
@@ -1007,7 +1024,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
 
   const servicesSection = (
     <div className="mt-8 grid gap-6 xl:grid-cols-[1.18fr_0.82fr]">
-      <SectionCard title="Services in your visible governance area" subtitle="Official fees, free services, and leaders who can help.">
+      <SectionCard title="RIB services in your case-study area" subtitle="Free reporting services, evidence support, and officers who can help.">
         <div className="grid gap-4 md:grid-cols-2">
           {servicesPagination.items.length > 0 ? (
             servicesPagination.items.map((item, index) => (
@@ -1019,14 +1036,14 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                 <p className="mt-2 text-sm text-slate">{item.description || 'No service description available yet.'}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.12em]">
                   <span className="rounded-full bg-white px-3 py-2 text-tide">
-                    {item.feeType === 'paid' ? `Paid: ${formatCurrency(item.officialFeeRwf)}` : 'Free service'}
+                    {item.feeType === 'paid' ? `Paid: ${formatCurrency(item.officialFeeRwf)}` : 'Free reporting service'}
                   </span>
                   <span className="rounded-full bg-white px-3 py-2 text-ink">{formatLocation(item.location)}</span>
                 </div>
                 <p className="mt-3 text-sm text-slate">{item.accessNote}</p>
                 {item.helpLeader ? (
                   <p className="mt-3 text-sm text-slate">
-                    Help leader: <span className="font-semibold text-ink">{item.helpLeader.fullName}</span>{' '}
+                    RIB support officer: <span className="font-semibold text-ink">{item.helpLeader.fullName}</span>{' '}
                     ({item.helpLeader.positionTitle})
                   </p>
                 ) : null}
@@ -1035,7 +1052,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                     to={`/dashboard/citizen/submit?institution=${item.institutionSlug}&source=qr`}
                     className="rounded-full bg-ink px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-white"
                   >
-                    Report issue
+                    Report to RIB
                   </Link>
                   {item.institutionQrCodeDataUrl ? (
                     <span className="rounded-full border border-ink/15 bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-tide">
@@ -1047,7 +1064,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             ))
           ) : (
             <article className="rounded-2xl bg-mist p-4 text-sm text-slate">
-              No services found for the selected location.
+              No RIB services found for the selected filter.
             </article>
           )}
         </div>
@@ -1058,7 +1075,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
         />
       </SectionCard>
 
-      <SectionCard title="Institution directory" subtitle="Visible offices, contacts, and the leader assigned to support citizens.">
+      <SectionCard title="RIB workflow directory" subtitle="Visible workflow points, contacts, and the officer assigned to support citizens.">
         <div className="space-y-3">
           {institutionsPagination.items.length > 0 ? (
             institutionsPagination.items.map((item) => (
@@ -1074,14 +1091,14 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                 <p className="mt-1">Services listed: {item.servicesCount}</p>
                 {item.helpLeader ? (
                   <p className="mt-1">
-                    Leader: {item.helpLeader.fullName} ({item.helpLeader.positionTitle})
+                    RIB officer: {item.helpLeader.fullName} ({item.helpLeader.positionTitle})
                   </p>
                 ) : null}
               </article>
             ))
           ) : (
             <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
-              No institutions found for this location filter.
+              No RIB workflow points found for this filter.
             </article>
           )}
         </div>
@@ -1096,7 +1113,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
 
   const leadersSection = (
     <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-      <SectionCard title="Leadership chain" subtitle="Village, cell, sector, district, and province leadership visible to this citizen.">
+      <SectionCard title="RIB workflow roles" subtitle="QR access, evidence triage, intake, investigation review, and supervisory review visible to this citizen.">
         <div className="grid gap-4 md:grid-cols-2">
           {leadersPagination.items.length > 0 ? (
             leadersPagination.items.map((entry) => (
@@ -1109,7 +1126,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                       {entry.leader.fullName} ({entry.leader.positionTitle})
                     </p>
                     <p className="mt-1 text-sm text-slate">
-                      Responsibility: {entry.leader.description || entry.leader.reportsTo || 'Leadership and service oversight.'}
+                      Responsibility: {entry.leader.description || entry.leader.reportsTo || 'RIB workflow oversight.'}
                     </p>
                     <p className="mt-1 text-sm text-slate">
                       Contact: {entry.leader.phone || 'N/A'} | {entry.leader.email || 'N/A'}
@@ -1117,13 +1134,13 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                     <p className="mt-1 text-sm text-slate">Office: {entry.officeAddress || 'Not available'}</p>
                   </>
                 ) : (
-                  <p className="mt-2 text-sm text-slate">Leader information is not available yet.</p>
+                  <p className="mt-2 text-sm text-slate">RIB role information is not available yet.</p>
                 )}
               </article>
             ))
           ) : (
             <article className="rounded-2xl bg-mist p-4 text-sm text-slate">
-              No leaders found for the selected location.
+              No RIB roles found for the selected filter.
             </article>
           )}
         </div>
@@ -1134,14 +1151,14 @@ function CitizenDashboardPage({ mode = 'overview' }) {
         />
       </SectionCard>
 
-      <SectionCard title="How complaints move upward" subtitle="The next review office changes automatically depending on who is accused or who fails to respond.">
+      <SectionCard title="How RIB reports move upward" subtitle="The next review stage changes automatically depending on who is accused or who fails to respond.">
         <div className="space-y-3 text-sm text-slate">
           {[
-            'Village leader corruption goes to cell review.',
-            'Cell leader corruption or missed response goes to sector review.',
-            'Sector-level failure goes to district review.',
-            'District-level failure goes to province review.',
-            'Province-level failure goes to national oversight review.',
+            'QR access reports move to evidence triage when evidence needs checking.',
+            'Evidence triage or missing response moves to RIB intake review.',
+            'Sensitive intake cases move to investigation review.',
+            'Unresolved investigation cases move to supervisory review.',
+            'Critical supervisory cases move to RIB national oversight.',
           ].map((item) => (
             <article key={item} className="rounded-2xl bg-mist px-4 py-3">
               {item}
@@ -1162,7 +1179,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
       ) : null}
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1.16fr_0.84fr]">
-        <SectionCard title="My complaints" subtitle="Every complaint keeps its assigned level, feedback, and escalation path visible.">
+        <SectionCard title="My RIB cases" subtitle="Every report keeps its assigned workflow stage, feedback, and escalation path visible.">
           <div className="space-y-4">
             {citizenCases.length > 0 ? (
               citizenCases.map((item) => (
@@ -1171,7 +1188,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                     <div>
                       <p className="font-display text-2xl font-black text-ink">{item.id}</p>
                       <p className="mt-1 text-sm text-slate">
-                        {item.category} | {item.issueType === 'corruption_issue' ? 'Corruption issue' : 'Service issue'}
+                        {item.category} | {item.issueType === 'corruption_issue' ? 'Corruption issue' : 'Citizen feedback'}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1196,13 +1213,13 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                   {item.sourceInstitution ? (
                     <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate">
                       <p className="font-semibold text-ink">{item.sourceInstitution.institutionName}</p>
-                      <p className="mt-1">{item.sourceInstitution.serviceName || 'General institution complaint'}</p>
+                      <p className="mt-1">{item.sourceInstitution.serviceName || 'General RIB workflow complaint'}</p>
                     </div>
                   ) : null}
 
                   {item.accusedLeaders.length > 0 ? (
                     <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate">
-                      <p className="font-semibold text-ink">Accused leaders</p>
+                      <p className="font-semibold text-ink">Reported RIB roles</p>
                       <p className="mt-1">
                         {item.accusedLeaders.map((entry) => `${entry.leaderName} (${formatLevel(entry.level)})`).join(', ')}
                       </p>
@@ -1212,7 +1229,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                   <ComplaintEvidencePanel
                     image={item.evidenceImage}
                     voiceNote={item.voiceNote}
-                    title="Evidence submitted with this complaint"
+                    title="Evidence submitted with this RIB report"
                   />
 
                   {item.response ? (
@@ -1273,14 +1290,14 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               ))
             ) : (
               <article className="rounded-2xl bg-mist p-5 text-sm text-slate">
-                You have not submitted any complaint yet. Use the submit page to report a service issue or corruption case.
+                You have not submitted any RIB report yet. Use the submit page to report citizen feedback or a corruption case.
               </article>
             )}
           </div>
         </SectionCard>
 
         <div className="space-y-6">
-          <SectionCard title="Recent timeline" subtitle="Latest visible updates on your complaints.">
+          <SectionCard title="Recent timeline" subtitle="Latest visible updates on your RIB cases.">
             <div className="space-y-3">
               {citizenTimeline.length > 0 ? (
                 citizenTimeline.map((item) => (
@@ -1292,7 +1309,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
                 ))
               ) : (
                 <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
-                  Complaint updates will appear here once you submit your first case.
+                  RIB case updates will appear here once you submit your first report.
                 </article>
               )}
             </div>
@@ -1319,7 +1336,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
         <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
           <DashboardState
             title="Loading citizen dashboard"
-            description="Preparing your profile, services, leaders, and complaint tracking workspace."
+            description="Preparing your profile, RIB services, workflow roles, and complaint tracking workspace."
           />
         </section>
       </div>
@@ -1344,13 +1361,13 @@ function CitizenDashboardPage({ mode = 'overview' }) {
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.28em] text-tide">Citizen Dashboard</p>
+            <p className="text-sm font-bold uppercase tracking-[0.28em] text-tide">Citizen RIB Dashboard</p>
             <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
               {VIEW_MODES[mode] ?? VIEW_MODES.overview}
             </h1>
             <p className="mt-4 max-w-4xl text-lg leading-8 text-slate">
-              Citizens can see leaders from village to province, compare official services and fees,
-              report service gaps or corruption, and track every response and escalation.
+              Citizens can see RIB workflow roles, review free reporting services, submit corruption
+              concerns or feedback, and track every response and escalation.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -1358,13 +1375,13 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               Overview
             </ModeLink>
             <ModeLink active={mode === 'submit'} to="/dashboard/citizen/submit">
-              Submit issue
+              Submit RIB report
             </ModeLink>
             <ModeLink active={mode === 'services'} to="/dashboard/citizen/services">
-              Services
+              RIB services
             </ModeLink>
             <ModeLink active={mode === 'leaders'} to="/dashboard/citizen/leaders">
-              Leaders
+              RIB roles
             </ModeLink>
           </div>
         </div>
@@ -1376,7 +1393,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
         </div>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <SectionCard title="Citizen identity and location" subtitle="This information follows verified reports for internal accountability.">
+          <SectionCard title="Citizen identity and context" subtitle="This information follows verified reports for internal accountability.">
             <div className="grid gap-3 md:grid-cols-2">
               <article className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Citizen</p>
@@ -1393,15 +1410,15 @@ function CitizenDashboardPage({ mode = 'overview' }) {
             </div>
           </SectionCard>
 
-          <SectionCard title="Complaint routing rules" subtitle="How service and corruption reports move across the governance chain.">
+          <SectionCard title="RIB complaint routing rules" subtitle="How feedback and corruption reports move across the RIB workflow.">
             <div className="space-y-3 text-sm text-slate">
               <article className="rounded-2xl bg-mist px-4 py-3">
                 {context?.complaintRoutingGuide?.serviceIssue ??
-                  'Service issues go to the leader who should respond first.'}
+                  'Citizen feedback issues go to the RIB role that should respond first.'}
               </article>
               <article className="rounded-2xl bg-mist px-4 py-3">
                 {context?.complaintRoutingGuide?.corruptionIssue ??
-                  'Corruption reports go to the next higher level.'}
+                  'Corruption reports go to the next independent RIB review stage.'}
               </article>
               <article className="rounded-2xl bg-mist px-4 py-3">
                 {context?.complaintRoutingGuide?.escalationWindow ??
@@ -1417,9 +1434,9 @@ function CitizenDashboardPage({ mode = 'overview' }) {
         </div>
 
         <div className="mt-8 rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-tide">Location filter</p>
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-tide">RIB reporting context filter</p>
           <p className="mt-2 text-sm text-slate">
-            Filter your leadership chain and local institution services from province down to village.
+            Filter the Kigali/Gasabo/Kacyiru case-study context used to reveal RIB workflow points and services.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <select
@@ -1427,7 +1444,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               onChange={(event) => updateFilter('province', event.target.value)}
               className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm text-ink outline-none focus:border-tide"
             >
-              <option value="">Select province</option>
+              <option value="">Select city/province</option>
               {options.provinces.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -1439,7 +1456,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               onChange={(event) => updateFilter('district', event.target.value)}
               className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm text-ink outline-none focus:border-tide"
             >
-              <option value="">Select district</option>
+              <option value="">Select district/area</option>
               {options.districts.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -1451,7 +1468,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               onChange={(event) => updateFilter('sector', event.target.value)}
               className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm text-ink outline-none focus:border-tide"
             >
-              <option value="">Select sector</option>
+              <option value="">Select sector/context</option>
               {options.sectors.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -1463,7 +1480,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               onChange={(event) => updateFilter('cell', event.target.value)}
               className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm text-ink outline-none focus:border-tide"
             >
-              <option value="">Select cell</option>
+              <option value="">Select evidence context</option>
               {options.cells.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -1475,7 +1492,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               onChange={(event) => updateFilter('village', event.target.value)}
               className="rounded-xl border border-ink/15 bg-mist px-3 py-2 text-sm text-ink outline-none focus:border-tide"
             >
-              <option value="">Select village</option>
+              <option value="">Select QR access point</option>
               {options.villages.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -1483,7 +1500,7 @@ function CitizenDashboardPage({ mode = 'overview' }) {
               ))}
             </select>
           </div>
-          {contextLoading ? <p className="mt-3 text-sm text-slate">Loading local leaders and institutions...</p> : null}
+          {contextLoading ? <p className="mt-3 text-sm text-slate">Loading RIB roles and workflow points...</p> : null}
           {contextError ? <p className="mt-3 text-sm text-clay">{contextError}</p> : null}
         </div>
 

@@ -67,10 +67,10 @@ function CitizenRegistrationPage() {
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
         <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">Citizen Registration</p>
         <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
-          Register citizen profile with full location
+          Register citizen profile for RIB case tracking
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate">
-          Citizens register using official identity and location from province down to village for accurate service routing.
+          Citizens register using official identity and case-study location so verified RIB reports can be tracked and followed up.
         </p>
 
         <div className="mt-10 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

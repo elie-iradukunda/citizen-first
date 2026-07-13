@@ -1,15 +1,15 @@
 export const quickStats = [
   {
     value: '24/7',
-    label: 'Emergency and hotline support availability',
+    label: 'RIB corruption reporting and hotline awareness',
   },
   {
     value: '3 Days',
-    label: 'Maximum response window per administrative level',
+    label: 'Maximum response window before escalation review',
   },
   {
-    value: '5 Levels',
-    label: 'Province, District, Sector, Cell, and Village governance chain',
+    value: '6 Stages',
+    label: 'QR access, evidence triage, intake, investigation, review, oversight',
   },
 ];
 
@@ -17,27 +17,27 @@ export const publicFeatureBlocks = [
   {
     title: 'AI Citizen Assistant',
     description:
-      'Ask service questions in plain language and get recommended offices, documents, and escalation steps.',
+      'Ask corruption-reporting questions in plain language and get RIB workflow guidance.',
   },
   {
-    title: 'Toll-Free Emergency Access',
+    title: 'Hotline and QR Access',
     description:
-      'Public emergency and integrity hotlines are visible and easy to call from any device.',
+      'Public integrity contacts and QR reporting access are visible and easy to use from any device.',
   },
   {
-    title: 'Trusted Service Guidance',
+    title: 'Trusted Case Guidance',
     description:
-      'Citizens can check official process direction before paying or submitting documents.',
+      'Citizens can understand what evidence to preserve, how cases move, and when escalation happens.',
   },
 ];
 
 export const publicNavLinks = [
   { to: '/', label: 'Home' },
-  { to: '/governance-structure', label: 'Structure' },
-  { to: '/services', label: 'Services' },
-  { to: '/emergency', label: 'Emergency' },
+  { to: '/governance-structure', label: 'Workflow' },
+  { to: '/services', label: 'RIB Services' },
+  { to: '/emergency', label: 'Hotlines' },
   { to: '/assistant', label: 'AI Assistant' },
   { to: '/register/citizen', label: 'Citizen Register' },
-  { to: '/register/invite', label: 'Institution Invite' },
+  { to: '/register/invite', label: 'RIB Invite' },
   { to: '/login?redirect=%2Fdashboards', label: 'Dashboard Login' },
 ];

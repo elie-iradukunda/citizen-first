@@ -10,15 +10,15 @@ import {
 } from '../../lib/authRouting';
 
 const levelWorkspaceLabels = {
-  national_admin: 'National Governance Command',
-  oversight_admin: 'Oversight and Compliance Center',
-  province_leader: 'Province Leadership Console',
-  district_leader: 'District Operations Console',
-  sector_leader: 'Sector Service Console',
-  cell_leader: 'Cell Frontline Console',
-  village_leader: 'Village Coordination Console',
-  institution_officer: 'Institution Officer Console',
-  citizen: 'Citizen Self-Service Dashboard',
+  national_admin: 'RIB National Oversight Command',
+  oversight_admin: 'RIB Oversight and Compliance Center',
+  province_leader: 'RIB Supervisory Review Console',
+  district_leader: 'RIB Investigation Review Console',
+  sector_leader: 'RIB Intake Console',
+  cell_leader: 'RIB Evidence Triage Console',
+  village_leader: 'RIB QR Access Console',
+  institution_officer: 'RIB Institution User Console',
+  citizen: 'Citizen RIB Reporting Dashboard',
 };
 
 function buildDashboardLinkClass(isActive) {
@@ -53,27 +53,27 @@ function DashboardLayout() {
   const dashboardLinks = isCitizenDashboardRole(role)
     ? [
         { to: dashboardHomePath, label: 'Dashboard Home' },
-        { to: '/dashboard/citizen/submit', label: 'Submit Issue' },
-        { to: '/dashboard/citizen/services', label: 'Service Explorer' },
-        { to: '/dashboard/citizen/leaders', label: 'Leaders and Roles' },
+        { to: '/dashboard/citizen/submit', label: 'Submit RIB Report' },
+        { to: '/dashboard/citizen/services', label: 'RIB Services' },
+        { to: '/dashboard/citizen/leaders', label: 'RIB Roles' },
       ]
     : isAdminDashboardRole(role)
       ? [
-          { to: '/dashboard/admin', label: 'Admin Overview' },
-          { to: '/dashboard/admin#system-alerts', label: 'System Alerts' },
-          { to: '/dashboard/admin#province-reports', label: 'Province Reports' },
-          { to: '/dashboard/admin#issue-types', label: 'Issue Types' },
-          { to: '/dashboard/admin#national-feed', label: 'National Reports' },
-          { to: '/dashboard/admin#registration-hierarchy', label: 'Hierarchy Coverage' },
-          ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'Invite Setup' }] : []),
+          { to: '/dashboard/admin', label: 'RIB Overview' },
+          { to: '/dashboard/admin#system-alerts', label: 'RIB Alerts' },
+          { to: '/dashboard/admin#province-reports', label: 'RIB Reports' },
+          { to: '/dashboard/admin#issue-types', label: 'Risk Types' },
+          { to: '/dashboard/admin#national-feed', label: 'Case Feed' },
+          { to: '/dashboard/admin#registration-hierarchy', label: 'Workflow Coverage' },
+          ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'RIB Invite Setup' }] : []),
         ]
       : [
           { to: dashboardHomePath, label: 'Overview' },
           { to: `${dashboardHomePath}#cases`, label: 'Case Queue' },
-          { to: `${dashboardHomePath}#territory`, label: 'Territory Explorer' },
+          { to: `${dashboardHomePath}#territory`, label: 'Workflow Explorer' },
           { to: `${dashboardHomePath}#team`, label: 'Team Watch' },
-          { to: `${dashboardHomePath}#institution-admin`, label: 'Institution Admin' },
-          ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'Invite Setup' }] : []),
+          { to: `${dashboardHomePath}#institution-admin`, label: 'RIB Institution Admin' },
+          ...(canAccessInviteSetup(role) ? [{ to: '/register/invite', label: 'RIB Invite Setup' }] : []),
         ];
 
   const onLogout = async () => {
@@ -96,7 +96,7 @@ function DashboardLayout() {
     <div className="min-h-screen bg-mist">
       <div className="flex min-h-screen lg:items-start">
         <aside className="hidden w-72 shrink-0 self-start bg-ink px-5 py-6 text-white lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
-          <p className="font-display text-2xl font-black uppercase tracking-[0.06em]">Citizen First</p>
+          <p className="font-display text-2xl font-black uppercase tracking-[0.06em]">RIB Case Study</p>
           <p className="mt-2 text-xs uppercase tracking-[0.14em] text-gold">
             {levelWorkspaceLabels[role] ?? 'Dashboard Console'}
           </p>
@@ -117,7 +117,7 @@ function DashboardLayout() {
           <header className="sticky top-0 z-30 border-b border-ink/10 bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">Authenticated Dashboard</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-tide">RIB Authenticated Dashboard</p>
                 <p className="mt-1 text-sm font-semibold text-ink">
                   {user?.fullName} ({user?.role})
                 </p>

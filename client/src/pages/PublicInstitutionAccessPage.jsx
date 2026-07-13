@@ -6,7 +6,16 @@ import { useAuth } from '../context/AuthContext';
 import { fetchInstitutionProfile } from '../lib/institutionApi';
 
 function formatLevel(level = '') {
-  return level ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()) : 'Unknown';
+  const workflowLabels = {
+    village: 'QR Access',
+    cell: 'Evidence Triage',
+    sector: 'RIB Intake',
+    district: 'Investigation Review',
+    province: 'Supervisory Review',
+    national: 'National Oversight',
+  };
+
+  return workflowLabels[level] ?? (level ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()) : 'Unknown');
 }
 
 function formatLocation(location = {}) {
@@ -73,7 +82,7 @@ function PublicInstitutionAccessPage() {
         <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
           <DashboardState
             title="Opening institution access page"
-            description="Loading services, leader accountability details, and citizen reporting options."
+            description="Loading RIB workflow details, accountability contacts, and citizen reporting options."
           />
         </section>
       </div>
@@ -93,20 +102,20 @@ function PublicInstitutionAccessPage() {
   return (
     <div className="bg-mist">
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
-        <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">Institution Public Access</p>
+        <p className="text-sm font-bold uppercase tracking-[0.24em] text-tide">RIB QR Public Access</p>
         <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
           {institution.institutionName}
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate">
-          Scan once, then choose whether to review this institution&apos;s public information or continue to citizen
-          issue reporting.
+          Scan once, then choose whether to review this RIB workflow point or continue to citizen
+          corruption reporting.
         </p>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_1fr]">
           <article className="rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate">View institution information</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate">View workflow information</p>
             <p className="mt-3 text-sm leading-7 text-slate">
-              Open services, office contacts, leader details, responsibilities, and local governance coverage.
+              Open services, office contacts, RIB lead details, responsibilities, and workflow coverage.
             </p>
             <a
               href="#info"
@@ -117,9 +126,9 @@ function PublicInstitutionAccessPage() {
           </article>
 
           <article className="rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate">Report an issue</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate">Report to RIB</p>
             <p className="mt-3 text-sm leading-7 text-slate">
-              Continue to the citizen complaint form for this institution. Login is required before a report is sent.
+              Continue to the citizen complaint form for this RIB workflow point. Login is required before a report is sent.
             </p>
             <Link to={reportTarget} className="mt-5 inline-flex rounded-full bg-gold px-5 py-3 text-sm font-bold text-ink">
               Continue to reporting
@@ -135,12 +144,12 @@ function PublicInstitutionAccessPage() {
         ) : null}
 
         <div id="info" className="mt-10 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <SectionCard title="Institution profile" subtitle="Official contact and accountability information.">
+          <SectionCard title="RIB workflow profile" subtitle="Official contact and accountability information.">
             <div className="space-y-3 text-sm text-slate">
               <article className="rounded-2xl bg-mist px-4 py-4">
                 <p className="font-semibold text-ink">{institution.institutionName}</p>
                 <p className="mt-1">
-                  {formatLevel(institution.level)} | {institution.institutionType || 'Government institution'}
+                  {formatLevel(institution.level)} | {institution.institutionType || 'RIB workflow point'}
                 </p>
               </article>
               <article className="rounded-2xl bg-mist px-4 py-4">
@@ -163,7 +172,7 @@ function PublicInstitutionAccessPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Leader and duties" subtitle="The primary accountable leader for this institution.">
+          <SectionCard title="RIB lead and duties" subtitle="The primary accountable lead for this workflow point.">
             {institution.leader ? (
               <div className="space-y-3 text-sm text-slate">
                 <article className="rounded-2xl bg-mist px-4 py-4">
@@ -181,20 +190,20 @@ function PublicInstitutionAccessPage() {
                 <article className="rounded-2xl bg-mist px-4 py-4">
                   <p className="font-semibold text-ink">Responsibilities and duties</p>
                   <p className="mt-2 leading-7">
-                    {institution.leader.duties || institution.leader.description || 'Leader duties were not yet published.'}
+                    {institution.leader.duties || institution.leader.description || 'RIB lead duties were not yet published.'}
                   </p>
                 </article>
               </div>
             ) : (
               <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
-                Leader details have not been published for this institution yet.
+                RIB lead details have not been published for this workflow point yet.
               </article>
             )}
           </SectionCard>
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <SectionCard title="Services" subtitle="Official services registered for this institution.">
+          <SectionCard title="RIB services" subtitle="Official reporting services registered for this workflow point.">
             <div className="space-y-3">
               {institution.services?.length > 0 ? (
                 institution.services.map((service) => (
@@ -205,13 +214,13 @@ function PublicInstitutionAccessPage() {
                 ))
               ) : (
                 <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
-                  No services were published for this institution yet.
+                  No services were published for this RIB workflow point yet.
                 </article>
               )}
             </div>
           </SectionCard>
 
-          <SectionCard title="Departments and lower levels" subtitle="Supporting units registered under this institution.">
+          <SectionCard title="Departments and lower workflow stages" subtitle="Supporting units registered under this workflow point.">
             <div className="space-y-3">
               {institution.departments?.length > 0 ? (
                 institution.departments.map((department) => (
@@ -222,7 +231,7 @@ function PublicInstitutionAccessPage() {
                 ))
               ) : (
                 <article className="rounded-2xl bg-mist px-4 py-4 text-sm text-slate">
-                  No departments were published for this institution yet.
+                  No departments were published for this RIB workflow point yet.
                 </article>
               )}
               {institution.children?.slice(0, 4).map((child) => (

@@ -6,3 +6,8 @@ client/dist/
 server/.env
 server/.sessions.json
 *.log
+tmp_pdf_extract/
+client/public/research-book/
+~$*.docx
+Esther.docx
+KASINE new (1) - *backup.*

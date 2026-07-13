@@ -9,7 +9,7 @@ function AssistantPage() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: 'Muraho. I am Citizen First AI Assistant. Ask me where to go for a service, who can solve your issue in your sector, or how to escalate a delayed case.',
+      text: 'Muraho. I am Citizen First AI Assistant for the RIB case study. Ask me how to report corruption, preserve evidence, track a case, or request escalation.',
     },
   ]);
   const [isAsking, setIsAsking] = useState(false);
@@ -108,10 +108,10 @@ function AssistantPage() {
       <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
         <p className="text-sm font-bold uppercase tracking-[0.26em] text-tide">AI Assistant</p>
         <h1 className="mt-4 font-display text-5xl font-black leading-tight text-ink">
-          Ask anything about local public services
+          Ask anything about RIB corruption reporting
         </h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate">
-          Ask in plain language and get practical guidance: who can solve your issue, what documents to carry, and how to escalate.
+          Ask in plain language and get practical guidance: what evidence to preserve, which RIB workflow stage applies, and when to escalate.
         </p>
 
         <div className="mt-10 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -168,13 +168,13 @@ function AssistantPage() {
                 <input
                   value={sector}
                   onChange={(event) => setSector(event.target.value)}
-                  placeholder="Optional: Sector"
+                  placeholder="Optional: Sector/context"
                   className="rounded-2xl border border-ink/15 bg-mist px-4 py-3 text-sm outline-none focus:border-tide"
                 />
                 <input
                   value={district}
                   onChange={(event) => setDistrict(event.target.value)}
-                  placeholder="Optional: District"
+                  placeholder="Optional: District/area"
                   className="rounded-2xl border border-ink/15 bg-mist px-4 py-3 text-sm outline-none focus:border-tide sm:col-span-2"
                 />
               </div>
@@ -182,7 +182,7 @@ function AssistantPage() {
                 <input
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="Ask your question about public service, corruption reporting, or local offices..."
+                  placeholder="Ask about bribery reporting, evidence, tracking, or RIB escalation..."
                   className="w-full rounded-2xl border border-ink/15 bg-mist px-4 py-3 text-sm outline-none focus:border-tide"
                 />
                 <button

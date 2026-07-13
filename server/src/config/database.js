@@ -5,6 +5,20 @@ let sequelize;
 let isInitialized = false;
 
 function readDatabaseConfig() {
+  const databaseUrl = process.env.MYSQL_URL ?? process.env.DATABASE_URL;
+
+  if (databaseUrl?.startsWith('mysql://') || databaseUrl?.startsWith('mysql2://')) {
+    const parsedUrl = new URL(databaseUrl);
+
+    return {
+      host: parsedUrl.hostname,
+      port: Number(parsedUrl.port || 3306),
+      name: parsedUrl.pathname.replace(/^\//, '') || 'railway',
+      user: decodeURIComponent(parsedUrl.username),
+      password: decodeURIComponent(parsedUrl.password),
+    };
+  }
+
   return {
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT ?? 3306),
