@@ -63,7 +63,12 @@ async function ensureExistingTableColumns(connection) {
     try {
       existingColumns = await queryInterface.describeTable(tableName);
     } catch (error) {
-      if (error?.original?.code === 'ER_NO_SUCH_TABLE' || error?.parent?.code === 'ER_NO_SUCH_TABLE') {
+      const errorMessage = String(error?.message ?? '');
+      if (
+        error?.original?.code === 'ER_NO_SUCH_TABLE' ||
+        error?.parent?.code === 'ER_NO_SUCH_TABLE' ||
+        errorMessage.includes('No description found')
+      ) {
         continue;
       }
 
