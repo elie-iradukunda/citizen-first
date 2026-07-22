@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { complaints, escalations, institutions, officers } from '../data/mockData.js';
+import { sendEmailInBackground, templates } from '../services/emailService.js';
 import {
   RWANDA_ADMINISTRATIVE_STRUCTURE,
   institutionEmployees,
@@ -1293,6 +1294,21 @@ function notifyComplaintRecipient(recipientId, complaintRecord, message) {
     createdAt: new Date().toISOString(),
     leaderEmployeeId: recipientId,
   });
+
+  if (recipientUser.email) {
+    sendEmailInBackground(
+      recipientUser.email,
+      templates.complaintAssigned({
+        officerName: recipientUser.fullName,
+        caseId: complaintRecord.id,
+        category: complaintRecord.category,
+        institutionName:
+          complaintRecord.sourceInstitutionName ??
+          getInstitutionName(complaintRecord.institutionId),
+        message,
+      }),
+    );
+  }
 }
 
 function buildCitizenExplorer(rawFilters = {}) {
@@ -2480,6 +2496,20 @@ router.post('/citizen/complaints', (request, response) => {
       : `New citizen service issue submitted to ${destination.level} review.`,
   );
 
+  if (reporterProfile.email) {
+    sendEmailInBackground(
+      reporterProfile.email,
+      templates.complaintSubmitted({
+        fullName: reporterProfile.fullName,
+        caseId: complaintRecord.id,
+        category: complaintRecord.category,
+        institutionName:
+          complaintRecord.sourceInstitutionName ??
+          getInstitutionName(complaintRecord.institutionId),
+      }),
+    );
+  }
+
   return response.status(201).json({
     message: 'Complaint submitted successfully and routed to the correct review level.',
     item: buildComplaintSummary(complaintRecord),
@@ -2522,6 +2552,18 @@ router.post('/citizen/complaints/:complaintId/accept-feedback', (request, respon
   complaint.updatedAt = now.toISOString();
   complaint.resolvedAt = now.toISOString();
   complaint.autoEscalateEnabled = false;
+
+  const officerUser = findSystemUserByAssignmentId(complaint.assignedOfficerId);
+  if (officerUser?.email) {
+    sendEmailInBackground(
+      officerUser.email,
+      templates.complaintClosed({
+        officerName: officerUser.fullName,
+        caseId: complaint.id,
+        citizenName: buildCitizenReporterProfile(request.auth.user).fullName,
+      }),
+    );
+  }
 
   return response.json({
     message: 'Feedback accepted and complaint closed successfully.',
@@ -2684,6 +2726,18 @@ router.post('/officer/complaints/:complaintId/respond', (request, response) => {
   complaint.status = 'responded';
   complaint.feedbackStatus = 'pending_citizen';
   complaint.updatedAt = now.toISOString();
+
+  if (complaint.reporterProfile?.email) {
+    sendEmailInBackground(
+      complaint.reporterProfile.email,
+      templates.complaintResponse({
+        fullName: complaint.reporterProfile.fullName,
+        caseId: complaint.id,
+        responderName,
+        actionTaken: responseRecord.actionTaken || responseRecord.message,
+      }),
+    );
+  }
 
   return response.json({
     message: 'Citizen feedback recorded successfully.',

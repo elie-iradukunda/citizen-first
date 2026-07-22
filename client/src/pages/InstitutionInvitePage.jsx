@@ -6,8 +6,10 @@ import { useRwandaLocation } from '../hooks/useRwandaLocation';
 import { createInstitutionInvite, fetchHierarchy } from '../lib/registrationApi';
 
 const levelOptions = ['province', 'district', 'sector', 'cell', 'village'];
+const directAdminLevels = ['province', 'district', 'sector', 'cell'];
 const nextLevelByRole = {
-  national_admin: 'province',
+  national_admin: directAdminLevels,
+  oversight_admin: directAdminLevels,
   province_leader: 'district',
   district_leader: 'sector',
   sector_leader: 'cell',
@@ -15,8 +17,11 @@ const nextLevelByRole = {
 };
 
 function getAllowedLevelsByRole(role) {
-  const level = nextLevelByRole[role];
-  return level ? [level] : levelOptions;
+  const levels = nextLevelByRole[role];
+  if (Array.isArray(levels)) {
+    return levels;
+  }
+  return levels ? [levels] : levelOptions;
 }
 
 function InstitutionInvitePage() {
@@ -108,7 +113,6 @@ function InstitutionInvitePage() {
                 <select
                   value={targetLevel}
                   onChange={(event) => setTargetLevel(event.target.value)}
-                  disabled={Boolean(nextLevelByRole[user?.role])}
                   className="w-full rounded-2xl border border-ink/15 bg-mist px-4 py-3 text-sm outline-none focus:border-tide"
                 >
                   {allowedLevels.map((level) => (
@@ -216,11 +220,11 @@ function InstitutionInvitePage() {
             <div className="rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
               <p className="font-display text-2xl font-black text-ink">Hierarchy Rule</p>
               <p className="mt-3 text-sm leading-7 text-slate">
-                Each role can only invite the next level. National admin invites Province, Province invites District, District invites Sector, Sector invites Cell, and Cell invites Village.
+                National admin can create direct testing invites from Province down to Cell. Other registered leaders invite the next lower level in their own governance scope.
               </p>
               {nextLevelByRole[user?.role] ? (
                 <p className="mt-3 text-sm font-semibold text-ink">
-                  Your allowed next level: {nextLevelByRole[user.role].toUpperCase()}
+                  Your allowed target level{allowedLevels.length === 1 ? '' : 's'}: {allowedLevels.map((level) => level.toUpperCase()).join(', ')}
                 </p>
               ) : null}
             </div>

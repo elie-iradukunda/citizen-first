@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { z } from 'zod';
 import { buildInstitutionAccessUrl, getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { getAuthUserFromRequest } from '../middleware/authMiddleware.js';
+import { sendEmailInBackground, templates } from '../services/emailService.js';
 import {
   GOVERNMENT_LEVELS,
   LEVEL_TO_ROLE,
@@ -38,6 +39,12 @@ const NEXT_LEVEL_BY_LEVEL = {
   sector: 'cell',
   cell: 'village',
   village: null,
+};
+const PARENT_LEVEL_BY_LEVEL = {
+  district: 'province',
+  sector: 'district',
+  cell: 'sector',
+  village: 'cell',
 };
 const CHILD_UNIT_LABEL_BY_LEVEL = {
   province: 'districts',
@@ -348,6 +355,12 @@ function slugify(value) {
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
+}
+
+function formatLocationForEmail(location = {}) {
+  return [location.village, location.cell, location.sector, location.district, location.province, location.country]
+    .filter(Boolean)
+    .join(', ');
 }
 
 function isEmailAlreadyInUse(email) {
@@ -718,9 +731,42 @@ function resolveActor(request) {
 }
 
 function ensureRoleCanInvite(actor, targetLevel) {
-  const allowedNextLevel =
-    NEXT_LEVEL_MAP[actor.role] ?? (actor.role === 'oversight_admin' ? 'province' : null);
-  return allowedNextLevel === targetLevel;
+  const allowedLevels =
+    actor.role === 'national_admin' || actor.role === 'oversight_admin'
+      ? ['province', 'district', 'sector', 'cell']
+      : [NEXT_LEVEL_MAP[actor.role]].filter(Boolean);
+  return allowedLevels.includes(targetLevel);
+}
+
+function getAllowedInviteLevels(actor) {
+  if (actor.role === 'national_admin' || actor.role === 'oversight_admin') {
+    return ['province', 'district', 'sector', 'cell'];
+  }
+
+  return [NEXT_LEVEL_MAP[actor.role]].filter(Boolean);
+}
+
+function findDirectInviteParentInstitution(targetLevel, location) {
+  if (targetLevel === 'province') {
+    return { institutionId: NATIONAL_ROOT_ID };
+  }
+
+  const parentLevel = PARENT_LEVEL_BY_LEVEL[targetLevel];
+  if (!parentLevel) {
+    return null;
+  }
+
+  const matchingParents = registeredInstitutions.filter(
+    (institution) =>
+      institution.level === parentLevel &&
+      isSameScopeForLevel(parentLevel, institution.location, location),
+  );
+
+  return (
+    matchingParents.find((institution) => !institution.institutionId?.startsWith('RIB-')) ??
+    matchingParents[0] ??
+    null
+  );
 }
 
 function ensureLocationInActorScope(actor, location) {
@@ -1017,6 +1063,16 @@ function createInstitutionPlatformAccount({ institution, employee, email, passwo
 
   systemUsers.push(user);
   employee.email = normalizedEmail;
+
+  sendEmailInBackground(
+    normalizedEmail,
+    templates.staffAccountCreated({
+      fullName: employee.fullName,
+      institutionName: institution.institutionName,
+      loginEmail: user.email,
+      accessKey: user.accessKey,
+    }),
+  );
 
   return {
     user,
@@ -1393,11 +1449,11 @@ router.post('/invites', async (request, response, next) => {
     }
 
     if (!ensureRoleCanInvite(actor, payload.targetLevel)) {
-      const allowedTargetLevel =
-        NEXT_LEVEL_MAP[actor.role] ?? (actor.role === 'oversight_admin' ? 'province' : null);
+      const allowedTargetLevels = getAllowedInviteLevels(actor);
       return response.status(403).json({
-        message: `Your role (${actor.role}) can only invite the next hierarchy level.`,
-        allowedTargetLevel,
+        message: `Your role (${actor.role}) cannot invite the selected target level.`,
+        allowedTargetLevel: allowedTargetLevels[0] ?? null,
+        allowedTargetLevels,
       });
     }
 
@@ -1417,9 +1473,24 @@ router.post('/invites', async (request, response, next) => {
     const inviteId = generateId('INV', institutionInvites.length);
     const expiresInDays = payload.expiresInDays ?? 7;
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+    const directInviteParent =
+      actor.role === 'national_admin' || actor.role === 'oversight_admin'
+        ? findDirectInviteParentInstitution(payload.targetLevel, location)
+        : null;
+
+    if (
+      ['national_admin', 'oversight_admin'].includes(actor.role) &&
+      payload.targetLevel !== 'province' &&
+      !directInviteParent
+    ) {
+      return response.status(400).json({
+        message: `A ${PARENT_LEVEL_BY_LEVEL[payload.targetLevel]}-level parent institution must already exist for this location before creating a ${payload.targetLevel}-level invite.`,
+      });
+    }
+
     const parentInstitutionId =
       actor.role === 'national_admin' || actor.role === 'oversight_admin'
-        ? NATIONAL_ROOT_ID
+        ? directInviteParent.institutionId
         : actor.institutionId;
     const registrationLink = `${getClientBaseUrl()}/register/institution?inviteToken=${inviteToken}`;
     const qrCodeDataUrl = await QRCode.toDataURL(registrationLink, {
@@ -1450,6 +1521,20 @@ router.post('/invites', async (request, response, next) => {
     };
 
     institutionInvites.push(inviteRecord);
+
+    if (inviteRecord.contactEmail) {
+      sendEmailInBackground(
+        inviteRecord.contactEmail,
+        templates.inviteCreated({
+          recipientName: inviteRecord.institutionNameHint,
+          institutionName: inviteRecord.institutionNameHint,
+          targetLevel: inviteRecord.targetLevel,
+          registrationLink: inviteRecord.registrationLink,
+          expiresAt: new Date(inviteRecord.expiresAt).toLocaleString('en-US'),
+          location: formatLocationForEmail(inviteRecord.location),
+        }),
+      );
+    }
 
     return response.status(201).json({
       message: 'Registration invite created successfully.',
@@ -1706,6 +1791,17 @@ router.post('/institutions/complete', async (request, response, next) => {
     invite.usedAt = new Date().toISOString();
     invite.usedByInstitutionId = institutionId;
 
+    sendEmailInBackground(
+      leaderUser.email,
+      templates.institutionRegistered({
+        leaderName: leaderUser.fullName,
+        institutionName: institutionRecord.institutionName,
+        loginEmail: leaderUser.email,
+        accessKey: leaderAccessKey,
+        publicUrl: buildInstitutionAccessUrl(institutionSlug),
+      }),
+    );
+
     return response.status(201).json({
       message: 'Institution registered successfully.',
       item: {
@@ -1898,6 +1994,14 @@ router.post('/citizens', (request, response) => {
   };
 
   systemUsers.push(citizenUser);
+
+  sendEmailInBackground(
+    citizenUser.email,
+    templates.citizenWelcome({
+      fullName: citizenUser.fullName,
+      loginEmail: citizenUser.email,
+    }),
+  );
 
   return response.status(201).json({
     message: 'Citizen registered successfully.',
