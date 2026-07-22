@@ -1819,16 +1819,20 @@ function buildOfficerDashboard(user) {
       .filter((entry) => scopedLevels.has(entry.toLevel) || scopedLevels.has(entry.fromLevel))
       .map((entry) => {
         const complaint = complaints.find((item) => item.id === entry.complaintId);
+        if (!complaint) {
+          return null;
+        }
 
         return {
+          ...buildComplaintSummary(complaint),
           complaintId: entry.complaintId,
           fromLevel: entry.fromLevel,
           toLevel: entry.toLevel,
           reason: entry.reason,
-          institution: complaint ? getInstitutionName(complaint.institutionId) : 'Unknown institution',
           escalatedAt: entry.escalatedAt,
         };
-      }),
+      })
+      .filter(Boolean),
     citizenTaggedIssues: taggedIssues.slice(0, 10).map((item) => ({
       ...buildComplaintSummary(item),
     })),
