@@ -692,7 +692,17 @@ export function CitizenScanServicesPage() {
       if (!normalizedSearchTerm) {
         return true;
       }
-      return [service.name, service.department, service.staffName, service.staffTitle, service.fee, service.documents]
+      return [
+        service.name,
+        service.department,
+        service.staffName,
+        service.staffTitle,
+        service.schedule,
+        service.fee,
+        service.documents,
+        service.description,
+        service.accessNote,
+      ]
         .join(' ')
         .toLowerCase()
         .includes(normalizedSearchTerm);
@@ -705,7 +715,10 @@ export function CitizenScanServicesPage() {
     }
 
     return leaderDirectory.filter((entry) =>
-      [entry.institutionName, entry.officer, entry.position].join(' ').toLowerCase().includes(normalizedSearchTerm),
+      [entry.institutionName, entry.officer, entry.position, entry.level]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearchTerm),
     );
   }, [leaderDirectory, normalizedSearchTerm]);
 
@@ -755,6 +768,57 @@ export function CitizenScanServicesPage() {
         }
       />
 
+      <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label className="flex min-h-[56px] flex-1 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 focus-within:border-brand-300 focus-within:bg-white">
+            <Search className="h-5 w-5 text-slate-400" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search service, staff, document, fee, or RIB leader"
+              className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+            />
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="rounded-md px-2 py-1 text-xs font-bold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                Clear
+              </button>
+            ) : null}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {['certificate', 'land', 'Mutuelle', 'bribery'].map((term) => (
+              <button
+                key={term}
+                type="button"
+                onClick={() => setSearchTerm(term)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
+              >
+                {term}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ['Services found', filteredServices.length, ClipboardList],
+            ['Leaders found', filteredLeaders.length, UserRound],
+            ['Response rule', scannedProfile.responseWindow, CalendarDays],
+            ['Evidence', 'Ready', FileText],
+          ].map(([label, value, Icon]) => (
+            <article key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+                <Icon className="h-4 w-4" style={{ color: BRAND }} />
+              </div>
+              <p className="mt-1 text-lg font-black text-slate-900">{value}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* Scanned institution summary */}
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
         {[
@@ -776,8 +840,8 @@ export function CitizenScanServicesPage() {
       {/* Services table */}
       <div className="mt-5">
         <Card
-          title="Official services"
-          subtitle="Search or filter, then open a service to see every detail before reporting."
+          title="Official service directory"
+          subtitle="Each service shows how to get it, who handles it, the working time, official fee, and required documents."
           icon={ClipboardList}
           action={
             <div className="flex flex-wrap items-center gap-2">
