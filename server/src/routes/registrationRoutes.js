@@ -73,12 +73,12 @@ const passwordSchema = z
   .max(64, 'Password is too long.');
 const serviceItemSchema = z.object({
   name: z.string().min(2).max(140),
-  description: z.string().max(320).optional().or(z.literal('')),
+  description: z.string().max(1000).optional().or(z.literal('')),
   feeType: z.enum(['free', 'paid']).optional(),
   officialFeeRwf: z.number().int().min(0).max(10_000_000).optional(),
-  accessNote: z.string().max(320).optional().or(z.literal('')),
+  accessNote: z.string().max(1000).optional().or(z.literal('')),
   schedule: z.string().max(160).optional().or(z.literal('')),
-  documents: z.string().max(320).optional().or(z.literal('')),
+  documents: z.string().max(1000).optional().or(z.literal('')),
 });
 
 const locationSchema = z.object({
@@ -120,13 +120,13 @@ const registerInstitutionSchema = z.object({
     password: passwordSchema,
     positionTitle: z.string().min(2).max(120),
     positionKinyarwanda: z.string().min(2).max(180),
-    description: z.string().max(320).optional().or(z.literal('')),
+    description: z.string().max(1000).optional().or(z.literal('')),
   }),
   departments: z
     .array(
       z.object({
         name: z.string().min(2).max(100),
-        description: z.string().max(220).optional().or(z.literal('')),
+        description: z.string().max(1000).optional().or(z.literal('')),
       }),
     )
     .max(20)
@@ -142,7 +142,7 @@ const registerInstitutionSchema = z.object({
         phone: phoneSchema,
         email: emailSchema.optional().or(z.literal('')),
         reportsTo: z.string().max(140).optional().or(z.literal('')),
-        description: z.string().max(320).optional().or(z.literal('')),
+        description: z.string().max(1000).optional().or(z.literal('')),
         status: z.enum(['Active', 'Inactive']).default('Active'),
       }),
     )
@@ -170,7 +170,7 @@ const createInstitutionStaffSchema = z
     positionTitle: z.string().min(2).max(120),
     positionKinyarwanda: z.string().max(180).optional().or(z.literal('')),
     reportsTo: z.string().max(140).optional().or(z.literal('')),
-    description: z.string().max(320).optional().or(z.literal('')),
+    description: z.string().max(1000).optional().or(z.literal('')),
     status: z.enum(['Active', 'Inactive']).default('Active'),
     createPlatformAccount: z.boolean().default(true),
   })
@@ -2417,18 +2417,18 @@ const updateInstitutionStaffSchema = z.object({
   positionTitle: z.string().min(2).max(120).optional(),
   positionKinyarwanda: z.string().max(180).optional().or(z.literal('')),
   reportsTo: z.string().max(140).optional().or(z.literal('')),
-  description: z.string().max(320).optional().or(z.literal('')),
+  description: z.string().max(1000).optional().or(z.literal('')),
   status: z.enum(['Active', 'Inactive']).optional(),
 });
 
 const departmentSchema = z.object({
   name: z.string().min(2).max(100),
-  description: z.string().max(220).optional().or(z.literal('')),
+  description: z.string().max(1000).optional().or(z.literal('')),
 });
 
 const updateDepartmentSchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  description: z.string().max(220).optional().or(z.literal('')),
+  description: z.string().max(1000).optional().or(z.literal('')),
 });
 
 const updateServiceSchema = serviceItemSchema.partial();
