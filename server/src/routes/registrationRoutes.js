@@ -13,6 +13,7 @@ import {
   institutionDepartments,
   institutionEmployees,
   institutionInvites,
+  institutionStaffServiceLinks,
   registeredCitizens,
   registeredInstitutions,
   staffTemplateExamples,
@@ -51,7 +52,9 @@ const nationalIdSchema = z
 
 const phoneSchema = z
   .string()
-  .regex(/^\+2507\d{8}$/, 'Phone must be a valid Rwanda mobile number, e.g. +250788123456.');
+  .trim()
+  .min(6, 'Phone number is required.')
+  .max(30, 'Phone number is too long.');
 
 const emailSchema = z.string().email();
 const passwordSchema = z
@@ -61,6 +64,11 @@ const passwordSchema = z
 const serviceItemSchema = z.object({
   name: z.string().min(2).max(140),
   description: z.string().max(320).optional().or(z.literal('')),
+  feeType: z.enum(['free', 'paid']).optional(),
+  officialFeeRwf: z.number().int().min(0).max(10_000_000).optional(),
+  accessNote: z.string().max(320).optional().or(z.literal('')),
+  schedule: z.string().max(160).optional().or(z.literal('')),
+  documents: z.string().max(320).optional().or(z.literal('')),
 });
 
 const locationSchema = z.object({
@@ -198,6 +206,65 @@ const registerCitizenSchema = z.object({
   idType: z.enum(['NATIONAL_ID', 'PASSPORT']).default('NATIONAL_ID'),
 });
 
+const createTestingUserSchema = z.object({
+  fullName: z.string().min(4).max(140),
+  email: emailSchema,
+  password: passwordSchema,
+  role: z.enum(['institution_admin', 'rib_officer_1', 'rib_officer_2']),
+  phone: phoneSchema.optional().or(z.literal('')),
+});
+
+const testingUserRoleConfig = {
+  institution_admin: {
+    label: 'Institution Leader',
+    userIdPrefix: 'USR-TEST-INSTITUTION',
+    accessKeyPrefix: 'CF-TEST-INST',
+    level: 'sector',
+    institutionId: 'GOV-KACYIRU-SECTOR',
+    positionTitle: 'Kacyiru Sector Institution Leader',
+    location: {
+      country: 'Rwanda',
+      province: 'Kigali City',
+      district: 'Gasabo',
+      sector: 'Kacyiru',
+      cell: '',
+      village: '',
+    },
+  },
+  rib_officer_1: {
+    label: 'RIB Officer 1',
+    userIdPrefix: 'USR-TEST-RIB1',
+    accessKeyPrefix: 'CF-TEST-RIB1',
+    level: 'national',
+    institutionId: 'RIB-INTAKE',
+    positionTitle: 'RIB Anti-Corruption Intake Officer',
+    location: {
+      country: 'Rwanda',
+      province: 'Kigali City',
+      district: 'Gasabo',
+      sector: 'Kacyiru',
+      cell: 'Kamatamu',
+      village: '',
+    },
+  },
+  rib_officer_2: {
+    label: 'RIB Officer 2',
+    userIdPrefix: 'USR-TEST-RIB2',
+    accessKeyPrefix: 'CF-TEST-RIB2',
+    level: 'national',
+    institutionId: 'RIB-ESCALATION',
+    positionTitle: 'RIB Escalation and Final Review Officer',
+    location: {
+      country: 'Rwanda',
+      province: 'Kigali City',
+      district: 'Gasabo',
+      sector: 'Kacyiru',
+      cell: 'Kamatamu',
+      village: '',
+    },
+  },
+};
+
 const citizenRegistrationFields = [
   { key: 'fullName', label: 'Full Name', required: true },
   { key: 'nationalId', label: 'National ID', required: true },
@@ -259,11 +326,15 @@ const institutionRegistrationFields = [
 ];
 
 function titleCase(value) {
+  const romanNumerals = new Set(['i', 'ii', 'iii', 'iv', 'v', 'vi']);
+
   return value
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+    .replace(/\b\w+\b/g, (word) =>
+      romanNumerals.has(word) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1),
+    );
 }
 
 function slugify(value) {
@@ -717,10 +788,25 @@ function getChildUnitLabelForLevel(level) {
 function normalizeServiceCatalog(services = []) {
   const seen = new Set();
   return services
-    .map((item) => ({
-      name: titleCase(item.name ?? ''),
-      description: (item.description ?? '').trim(),
-    }))
+    .map((item) => {
+      const feeType = item.feeType === 'paid' ? 'paid' : 'free';
+      const officialFeeRwf =
+        feeType === 'paid' && Number.isInteger(item.officialFeeRwf) ? item.officialFeeRwf : 0;
+
+      return {
+        name: titleCase(item.name ?? ''),
+        description: (item.description ?? '').trim(),
+        feeType,
+        officialFeeRwf,
+        accessNote:
+          (item.accessNote ?? '').trim() ||
+          (feeType === 'paid'
+            ? 'Use only official receipted payment channels for this service.'
+            : 'This service should be offered without any unofficial payment.'),
+        schedule: (item.schedule ?? '').trim(),
+        documents: (item.documents ?? '').trim(),
+      };
+    })
     .filter((item) => item.name.length > 1)
     .filter((item) => {
       const key = item.name.toLowerCase();
@@ -862,6 +948,23 @@ function buildInstitutionManagementItem(institution) {
       };
     });
 
+  const staffServiceLinks = institutionStaffServiceLinks
+    .filter((entry) => entry.institutionId === institution.institutionId)
+    .map((entry) => {
+      const linkedEmployee = institutionEmployees.find(
+        (employee) => employee.employeeId === entry.employeeId,
+      );
+
+      return {
+        linkId: entry.linkId,
+        employeeId: entry.employeeId,
+        employeeName: linkedEmployee?.fullName ?? 'Unknown staff',
+        positionTitle: linkedEmployee?.positionTitle ?? null,
+        serviceName: entry.serviceName,
+        createdAt: entry.createdAt,
+      };
+    });
+
   return {
     institutionId: institution.institutionId,
     slug: institution.slug,
@@ -876,6 +979,7 @@ function buildInstitutionManagementItem(institution) {
     departments: institutionDepartments.filter(
       (entry) => entry.institutionId === institution.institutionId,
     ),
+    staffServiceLinks,
     employees,
     employeeCount: employees.length,
     servicesCount: institution.services?.length ?? 0,
@@ -1637,6 +1741,87 @@ router.post('/institutions/complete', async (request, response, next) => {
   }
 });
 
+router.post('/testing-users', (request, response) => {
+  const actor = resolveActor(request);
+  const rolesAllowedToCreateTestingUsers = new Set([
+    'national_admin',
+    'oversight_admin',
+    'institution_admin',
+  ]);
+
+  if (!actor) {
+    return response.status(401).json({
+      message: 'Login is required before creating testing users.',
+    });
+  }
+
+  if (!rolesAllowedToCreateTestingUsers.has(actor.role)) {
+    return response.status(403).json({
+      message: 'Only an admin can create RIB officer or institution leader testing users.',
+    });
+  }
+
+  const parseResult = createTestingUserSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid testing user payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const payload = parseResult.data;
+  const normalizedEmail = normalizeEmail(payload.email);
+
+  if (isEmailAlreadyInUse(normalizedEmail)) {
+    return response.status(409).json({
+      message: 'This email is already registered.',
+    });
+  }
+
+  const config = testingUserRoleConfig[payload.role];
+  const roleUserCount =
+    systemUsers.filter((user) => user.userId.startsWith(config.userIdPrefix)).length + 1;
+  const userId = `${config.userIdPrefix}-${String(roleUserCount).padStart(3, '0')}`;
+  const accessKey = `${config.accessKeyPrefix}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const now = new Date().toISOString();
+  const user = {
+    userId,
+    role: payload.role,
+    level: config.level,
+    fullName: payload.fullName.trim(),
+    email: normalizedEmail,
+    nationalId: null,
+    phone: payload.phone?.trim() || null,
+    institutionId: config.institutionId,
+    accessKey,
+    positionTitle: config.positionTitle,
+    status: 'active',
+    location: config.location,
+    createdBy: actor.userId,
+    createdAt: now,
+    ...createPasswordCredentials(payload.password, userId),
+  };
+
+  systemUsers.push(user);
+
+  return response.status(201).json({
+    message: `${config.label} testing user created successfully.`,
+    item: {
+      userId: user.userId,
+      role: user.role,
+      level: user.level,
+      fullName: user.fullName,
+      email: user.email,
+      loginEmail: user.email,
+      institutionId: user.institutionId,
+      positionTitle: user.positionTitle,
+      accessKey: user.accessKey,
+      status: user.status,
+      createdAt: user.createdAt,
+    },
+  });
+});
+
 router.post('/citizens', (request, response) => {
   const parseResult = registerCitizenSchema.safeParse(request.body);
 
@@ -1980,6 +2165,671 @@ router.post('/institutions/:institutionId/employees/:employeeId/account', (reque
     message: 'Platform account created successfully.',
     createdAccount,
     item: buildInstitutionManagementItem(institution),
+  });
+});
+
+const updateInstitutionStaffSchema = z.object({
+  fullName: z.string().min(4).max(140).optional(),
+  phone: phoneSchema.optional(),
+  email: emailSchema.optional().or(z.literal('')),
+  positionTitle: z.string().min(2).max(120).optional(),
+  positionKinyarwanda: z.string().max(180).optional().or(z.literal('')),
+  reportsTo: z.string().max(140).optional().or(z.literal('')),
+  description: z.string().max(320).optional().or(z.literal('')),
+  status: z.enum(['Active', 'Inactive']).optional(),
+});
+
+const departmentSchema = z.object({
+  name: z.string().min(2).max(100),
+  description: z.string().max(220).optional().or(z.literal('')),
+});
+
+const updateDepartmentSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  description: z.string().max(220).optional().or(z.literal('')),
+});
+
+const updateServiceSchema = serviceItemSchema.partial();
+
+function resolveManagedInstitution(request, response) {
+  const actor = resolveActor(request);
+  if (!actor) {
+    response.status(401).json({
+      message: 'Authentication or access key is required.',
+    });
+    return null;
+  }
+
+  const institution = findInstitutionById(request.params.institutionId);
+  if (!institution) {
+    response.status(404).json({
+      message: 'Institution not found.',
+    });
+    return null;
+  }
+
+  if (!canActorManageInstitution(actor, institution)) {
+    response.status(403).json({
+      message: 'You do not have permission to manage this institution.',
+    });
+    return null;
+  }
+
+  return { actor, institution };
+}
+
+function findServiceIndexByName(institution, rawName) {
+  const target = decodeURIComponent(rawName ?? '').trim().toLowerCase();
+  return (institution.services ?? []).findIndex(
+    (service) => service.name.toLowerCase() === target,
+  );
+}
+
+function refreshInstitutionEmployeeCount(institution) {
+  institution.employeeCount = institutionEmployees.filter(
+    (entry) => entry.institutionId === institution.institutionId,
+  ).length;
+  institution.updatedAt = new Date().toISOString();
+}
+
+// --- Service catalog CRUD ---
+
+router.post('/institutions/:institutionId/services', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const parseResult = serviceItemSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid service payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const [service] = normalizeServiceCatalog([parseResult.data]);
+  if (!service) {
+    return response.status(400).json({
+      message: 'Service name is required.',
+    });
+  }
+
+  const services = institution.services ?? [];
+  if (services.some((entry) => entry.name.toLowerCase() === service.name.toLowerCase())) {
+    return response.status(409).json({
+      message: 'A service with this name is already registered for this institution.',
+    });
+  }
+
+  institution.services = [...services, service];
+  institution.updatedAt = new Date().toISOString();
+
+  return response.status(201).json({
+    message: 'Service registered successfully.',
+    createdService: service,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.patch('/institutions/:institutionId/services/:serviceName', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const serviceIndex = findServiceIndexByName(institution, request.params.serviceName);
+  if (serviceIndex === -1) {
+    return response.status(404).json({
+      message: 'Service not found in this institution.',
+    });
+  }
+
+  const parseResult = updateServiceSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid service update payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const currentService = institution.services[serviceIndex];
+  const [updatedService] = normalizeServiceCatalog([{ ...currentService, ...parseResult.data }]);
+  if (!updatedService) {
+    return response.status(400).json({
+      message: 'Updated service payload is not valid.',
+    });
+  }
+
+  const renamedToExisting = institution.services.some(
+    (entry, index) =>
+      index !== serviceIndex && entry.name.toLowerCase() === updatedService.name.toLowerCase(),
+  );
+  if (renamedToExisting) {
+    return response.status(409).json({
+      message: 'Another service already uses this name.',
+    });
+  }
+
+  const previousName = currentService.name;
+  institution.services[serviceIndex] = updatedService;
+  institution.updatedAt = new Date().toISOString();
+
+  if (previousName.toLowerCase() !== updatedService.name.toLowerCase()) {
+    for (const link of institutionStaffServiceLinks) {
+      if (
+        link.institutionId === institution.institutionId &&
+        link.serviceName.toLowerCase() === previousName.toLowerCase()
+      ) {
+        link.serviceName = updatedService.name;
+      }
+    }
+  }
+
+  return response.json({
+    message: 'Service updated successfully.',
+    updatedService,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.delete('/institutions/:institutionId/services/:serviceName', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const serviceIndex = findServiceIndexByName(institution, request.params.serviceName);
+  if (serviceIndex === -1) {
+    return response.status(404).json({
+      message: 'Service not found in this institution.',
+    });
+  }
+
+  const [removedService] = institution.services.splice(serviceIndex, 1);
+  institution.updatedAt = new Date().toISOString();
+
+  for (let index = institutionStaffServiceLinks.length - 1; index >= 0; index -= 1) {
+    const link = institutionStaffServiceLinks[index];
+    if (
+      link.institutionId === institution.institutionId &&
+      link.serviceName.toLowerCase() === removedService.name.toLowerCase()
+    ) {
+      institutionStaffServiceLinks.splice(index, 1);
+    }
+  }
+
+  return response.json({
+    message: 'Service deleted successfully.',
+    removedService,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+// --- Department CRUD ---
+
+router.post('/institutions/:institutionId/departments', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const parseResult = departmentSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid department payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const name = titleCase(parseResult.data.name);
+  const duplicate = institutionDepartments.some(
+    (entry) =>
+      entry.institutionId === institution.institutionId &&
+      entry.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (duplicate) {
+    return response.status(409).json({
+      message: 'A department with this name is already registered for this institution.',
+    });
+  }
+
+  const department = {
+    departmentId: `DEP-${institution.institutionId}-${slugify(name).toUpperCase()}-${String(
+      institutionDepartments.length + 1,
+    ).padStart(3, '0')}`,
+    institutionId: institution.institutionId,
+    name,
+    description: (parseResult.data.description ?? '').trim(),
+    createdAt: new Date().toISOString(),
+  };
+
+  institutionDepartments.push(department);
+  institution.updatedAt = new Date().toISOString();
+
+  return response.status(201).json({
+    message: 'Department created successfully.',
+    createdDepartment: department,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.patch('/institutions/:institutionId/departments/:departmentId', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const department = institutionDepartments.find(
+    (entry) =>
+      entry.institutionId === institution.institutionId &&
+      entry.departmentId === request.params.departmentId,
+  );
+  if (!department) {
+    return response.status(404).json({
+      message: 'Department not found in this institution.',
+    });
+  }
+
+  const parseResult = updateDepartmentSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid department update payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  if (parseResult.data.name) {
+    const name = titleCase(parseResult.data.name);
+    const duplicate = institutionDepartments.some(
+      (entry) =>
+        entry.institutionId === institution.institutionId &&
+        entry.departmentId !== department.departmentId &&
+        entry.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (duplicate) {
+      return response.status(409).json({
+        message: 'Another department already uses this name.',
+      });
+    }
+    department.name = name;
+  }
+  if (parseResult.data.description !== undefined) {
+    department.description = (parseResult.data.description ?? '').trim();
+  }
+  department.updatedAt = new Date().toISOString();
+  institution.updatedAt = department.updatedAt;
+
+  return response.json({
+    message: 'Department updated successfully.',
+    updatedDepartment: department,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.delete('/institutions/:institutionId/departments/:departmentId', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const departmentIndex = institutionDepartments.findIndex(
+    (entry) =>
+      entry.institutionId === institution.institutionId &&
+      entry.departmentId === request.params.departmentId,
+  );
+  if (departmentIndex === -1) {
+    return response.status(404).json({
+      message: 'Department not found in this institution.',
+    });
+  }
+
+  const [removedDepartment] = institutionDepartments.splice(departmentIndex, 1);
+  institution.updatedAt = new Date().toISOString();
+
+  return response.json({
+    message: 'Department deleted successfully.',
+    removedDepartment,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+// --- Employee update + delete ---
+
+router.patch('/institutions/:institutionId/employees/:employeeId', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const employee = findInstitutionEmployeeById(
+    institution.institutionId,
+    request.params.employeeId,
+  );
+  if (!employee) {
+    return response.status(404).json({
+      message: 'Staff member not found in this institution.',
+    });
+  }
+
+  const parseResult = updateInstitutionStaffSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid staff update payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const payload = parseResult.data;
+  if (payload.email?.trim()) {
+    const normalizedEmail = normalizeEmail(payload.email);
+    const linkedUser = findInstitutionPlatformUser(employee);
+    const emailTakenByOther = systemUsers.some(
+      (user) =>
+        user.email &&
+        normalizeEmail(user.email) === normalizedEmail &&
+        user.userId !== linkedUser?.userId,
+    );
+    if (emailTakenByOther) {
+      return response.status(409).json({
+        message: 'This email is already in use by another platform account.',
+      });
+    }
+  }
+
+  const linkedUser = findInstitutionPlatformUser(employee);
+
+  if (payload.fullName !== undefined) {
+    employee.fullName = payload.fullName;
+  }
+  if (payload.phone !== undefined) {
+    employee.phone = payload.phone;
+  }
+  if (payload.email !== undefined) {
+    employee.email = payload.email ? normalizeEmail(payload.email) : null;
+  }
+  if (payload.positionTitle !== undefined) {
+    employee.positionTitle = payload.positionTitle;
+  }
+  if (payload.positionKinyarwanda !== undefined) {
+    employee.positionKinyarwanda = payload.positionKinyarwanda || null;
+  }
+  if (payload.reportsTo !== undefined) {
+    employee.reportsTo = payload.reportsTo || null;
+  }
+  if (payload.description !== undefined) {
+    employee.description = payload.description || null;
+  }
+  if (payload.status !== undefined) {
+    employee.status = payload.status;
+  }
+  employee.updatedAt = new Date().toISOString();
+
+  if (linkedUser) {
+    if (payload.fullName !== undefined) {
+      linkedUser.fullName = employee.fullName;
+    }
+    if (payload.phone !== undefined) {
+      linkedUser.phone = employee.phone;
+    }
+    if (payload.email !== undefined && employee.email) {
+      linkedUser.email = employee.email;
+    }
+    if (payload.positionTitle !== undefined) {
+      linkedUser.positionTitle = employee.positionTitle;
+    }
+    if (payload.status !== undefined) {
+      linkedUser.status = employee.status === 'Active' ? 'active' : 'inactive';
+    }
+  }
+
+  institution.updatedAt = employee.updatedAt;
+
+  return response.json({
+    message: 'Staff member updated successfully.',
+    updatedEmployee: {
+      employeeId: employee.employeeId,
+      fullName: employee.fullName,
+      positionTitle: employee.positionTitle,
+      status: employee.status,
+    },
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.delete('/institutions/:institutionId/employees/:employeeId', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const employee = findInstitutionEmployeeById(
+    institution.institutionId,
+    request.params.employeeId,
+  );
+  if (!employee) {
+    return response.status(404).json({
+      message: 'Staff member not found in this institution.',
+    });
+  }
+
+  if (employee.isLeader === true) {
+    return response.status(409).json({
+      message: 'The institution leader cannot be deleted. Transfer leadership first.',
+    });
+  }
+
+  const linkedUser = findInstitutionPlatformUser(employee);
+  if (linkedUser) {
+    linkedUser.status = 'inactive';
+  }
+
+  const employeeIndex = institutionEmployees.findIndex(
+    (entry) => entry.employeeId === employee.employeeId,
+  );
+  const [removedEmployee] = institutionEmployees.splice(employeeIndex, 1);
+  for (let index = institutionStaffServiceLinks.length - 1; index >= 0; index -= 1) {
+    if (institutionStaffServiceLinks[index].employeeId === removedEmployee.employeeId) {
+      institutionStaffServiceLinks.splice(index, 1);
+    }
+  }
+  refreshInstitutionEmployeeCount(institution);
+
+  return response.json({
+    message: 'Staff member deleted successfully.',
+    removedEmployee: {
+      employeeId: removedEmployee.employeeId,
+      fullName: removedEmployee.fullName,
+    },
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+// --- Staff-to-service link CRUD ---
+
+const createStaffServiceLinkSchema = z.object({
+  employeeId: z.string().min(4).max(80),
+  serviceName: z.string().min(2).max(140),
+});
+
+router.post('/institutions/:institutionId/service-links', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const parseResult = createStaffServiceLinkSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid staff-service link payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const employee = findInstitutionEmployeeById(
+    institution.institutionId,
+    parseResult.data.employeeId,
+  );
+  if (!employee) {
+    return response.status(404).json({
+      message: 'Staff member not found in this institution.',
+    });
+  }
+
+  const serviceIndex = findServiceIndexByName(
+    institution,
+    encodeURIComponent(parseResult.data.serviceName),
+  );
+  if (serviceIndex === -1) {
+    return response.status(404).json({
+      message: 'Service not found in this institution.',
+    });
+  }
+
+  const serviceName = institution.services[serviceIndex].name;
+  const duplicate = institutionStaffServiceLinks.some(
+    (entry) =>
+      entry.institutionId === institution.institutionId &&
+      entry.employeeId === employee.employeeId &&
+      entry.serviceName.toLowerCase() === serviceName.toLowerCase(),
+  );
+  if (duplicate) {
+    return response.status(409).json({
+      message: 'This staff member is already linked to this service.',
+    });
+  }
+
+  const link = {
+    linkId: `LNK-${institution.institutionId}-${String(institutionStaffServiceLinks.length + 1).padStart(4, '0')}`,
+    institutionId: institution.institutionId,
+    employeeId: employee.employeeId,
+    serviceName,
+    createdAt: new Date().toISOString(),
+  };
+  institutionStaffServiceLinks.push(link);
+  institution.updatedAt = link.createdAt;
+
+  return response.status(201).json({
+    message: 'Staff member linked to service successfully.',
+    createdLink: {
+      ...link,
+      employeeName: employee.fullName,
+      positionTitle: employee.positionTitle,
+    },
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+router.delete('/institutions/:institutionId/service-links/:linkId', (request, response) => {
+  const managed = resolveManagedInstitution(request, response);
+  if (!managed) {
+    return undefined;
+  }
+  const { institution } = managed;
+
+  const linkIndex = institutionStaffServiceLinks.findIndex(
+    (entry) =>
+      entry.institutionId === institution.institutionId &&
+      entry.linkId === request.params.linkId,
+  );
+  if (linkIndex === -1) {
+    return response.status(404).json({
+      message: 'Staff-service link not found in this institution.',
+    });
+  }
+
+  const [removedLink] = institutionStaffServiceLinks.splice(linkIndex, 1);
+  institution.updatedAt = new Date().toISOString();
+
+  return response.json({
+    message: 'Staff-service link removed successfully.',
+    removedLink,
+    item: buildInstitutionManagementItem(institution),
+  });
+});
+
+// --- Institution delete (national oversight only) ---
+
+router.delete('/institutions/:institutionId', (request, response) => {
+  const actor = resolveActor(request);
+  if (!actor) {
+    return response.status(401).json({
+      message: 'Authentication or access key is required.',
+    });
+  }
+
+  if (!['national_admin', 'oversight_admin'].includes(actor.role)) {
+    return response.status(403).json({
+      message: 'Only national oversight can delete an institution.',
+    });
+  }
+
+  const institution = findInstitutionById(request.params.institutionId);
+  if (!institution) {
+    return response.status(404).json({
+      message: 'Institution not found.',
+    });
+  }
+
+  const children = getChildrenInstitutions(institution.institutionId);
+  if (children.length > 0) {
+    return response.status(409).json({
+      message:
+        'This institution still has registered child units. Delete or move them before deleting it.',
+    });
+  }
+
+  for (let index = institutionEmployees.length - 1; index >= 0; index -= 1) {
+    if (institutionEmployees[index].institutionId === institution.institutionId) {
+      institutionEmployees.splice(index, 1);
+    }
+  }
+  for (let index = institutionDepartments.length - 1; index >= 0; index -= 1) {
+    if (institutionDepartments[index].institutionId === institution.institutionId) {
+      institutionDepartments.splice(index, 1);
+    }
+  }
+  for (let index = institutionStaffServiceLinks.length - 1; index >= 0; index -= 1) {
+    if (institutionStaffServiceLinks[index].institutionId === institution.institutionId) {
+      institutionStaffServiceLinks.splice(index, 1);
+    }
+  }
+  for (const user of systemUsers) {
+    if (user.institutionId === institution.institutionId) {
+      user.status = 'inactive';
+    }
+  }
+
+  const institutionIndex = registeredInstitutions.findIndex(
+    (entry) => entry.institutionId === institution.institutionId,
+  );
+  const [removedInstitution] = registeredInstitutions.splice(institutionIndex, 1);
+
+  const parent = findInstitutionById(removedInstitution.parentInstitutionId);
+  if (parent) {
+    parent.childInstitutionIds = (parent.childInstitutionIds ?? []).filter(
+      (entry) => entry !== removedInstitution.institutionId,
+    );
+    parent.registeredChildUnits = getChildrenInstitutions(parent.institutionId).length;
+    parent.updatedAt = new Date().toISOString();
+  }
+
+  return response.json({
+    message: 'Institution deleted successfully.',
+    removedInstitution: {
+      institutionId: removedInstitution.institutionId,
+      institutionName: removedInstitution.institutionName,
+      slug: removedInstitution.slug,
+    },
   });
 });
 

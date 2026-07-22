@@ -5,6 +5,7 @@ import {
   RWANDA_ADMINISTRATIVE_STRUCTURE,
   institutionEmployees,
   institutionInvites,
+  institutionStaffServiceLinks,
   registeredCitizens,
   registeredInstitutions,
   systemUsers,
@@ -24,11 +25,16 @@ const ROLE_TO_LEVEL = {
   cell_leader: 'cell',
   village_leader: 'village',
   institution_officer: 'district',
+  institution_admin: 'sector',
+  rib_officer_1: 'national',
+  rib_officer_2: 'national',
   national_admin: 'national',
   oversight_admin: 'national',
 };
 const CITIZEN_DASHBOARD_ROLES = new Set(['citizen']);
 const OFFICER_DASHBOARD_ROLES = new Set([
+  'rib_officer_1',
+  'rib_officer_2',
   'institution_officer',
   'province_leader',
   'district_leader',
@@ -49,6 +55,9 @@ const NEXT_LEVEL_BY_ROLE = {
   cell_leader: 'village',
   village_leader: null,
   institution_officer: null,
+  institution_admin: null,
+  rib_officer_1: null,
+  rib_officer_2: null,
   oversight_admin: null,
 };
 const REPORT_LEVELS_FOR_CITIZEN = ['village', 'cell', 'sector', 'district', 'province', 'national'];
@@ -337,11 +346,15 @@ function getEmployeeCountForInstitution(institutionId) {
 }
 
 function titleCase(value) {
+  const romanNumerals = new Set(['i', 'ii', 'iii', 'iv', 'v', 'vi']);
+
   return String(value ?? '')
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+    .replace(/\b\w+\b/g, (word) =>
+      romanNumerals.has(word) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1),
+    );
 }
 
 function normalizeLocationFilters(rawFilters = {}) {
@@ -359,7 +372,12 @@ function matchesUserScope(user, location = {}) {
     return false;
   }
 
-  if (user.role === 'national_admin' || user.role === 'oversight_admin') {
+  if (
+    user.role === 'national_admin' ||
+    user.role === 'oversight_admin' ||
+    user.role === 'rib_officer_1' ||
+    user.role === 'rib_officer_2'
+  ) {
     return true;
   }
 
@@ -580,6 +598,13 @@ const citizenVoiceNoteSchema = z.object({
   dataUrl: z.string().startsWith('data:audio/').max(8_000_000),
 });
 
+const citizenComplaintDocumentSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  type: z.string().trim().min(3).max(120),
+  size: z.number().int().positive().max(4 * 1024 * 1024),
+  dataUrl: z.string().startsWith('data:').max(8_000_000),
+});
+
 const citizenComplaintSubmissionSchema = z
   .object({
     issueType: z.enum(CITIZEN_ISSUE_TYPES).default('service_issue'),
@@ -592,6 +617,7 @@ const citizenComplaintSubmissionSchema = z
     targetLeaderEmployeeId: z.string().min(4).optional(),
     accusedLeaderEmployeeIds: z.array(z.string().min(4)).max(5).optional(),
     evidenceImage: citizenComplaintImageSchema.optional(),
+    evidenceDocument: citizenComplaintDocumentSchema.optional(),
     voiceNote: citizenVoiceNoteSchema.optional(),
   })
   .superRefine((payload, context) => {
@@ -785,7 +811,36 @@ function findLeaderUserByEmployeeId(employeeId) {
   };
 }
 
-function normalizeCitizenService(service, index = 0) {
+function getResponsibleStaffForService(institutionId, serviceName) {
+  if (!institutionId || !serviceName) {
+    return [];
+  }
+
+  return institutionStaffServiceLinks
+    .filter(
+      (link) =>
+        link.institutionId === institutionId &&
+        link.serviceName.toLowerCase() === serviceName.toLowerCase(),
+    )
+    .map((link) => {
+      const employee = institutionEmployees.find(
+        (entry) => entry.employeeId === link.employeeId,
+      );
+
+      return employee
+        ? {
+            employeeId: employee.employeeId,
+            fullName: employee.fullName,
+            positionTitle: employee.positionTitle,
+            phone: employee.phone,
+            email: employee.email ?? null,
+          }
+        : null;
+    })
+    .filter(Boolean);
+}
+
+function normalizeCitizenService(service, index = 0, institutionId = null) {
   const feeType = service.feeType ?? (index % 3 === 0 ? 'paid' : 'free');
   const officialFeeRwf =
     typeof service.officialFeeRwf === 'number'
@@ -795,6 +850,7 @@ function normalizeCitizenService(service, index = 0) {
         : 0;
 
   return {
+    responsibleStaff: getResponsibleStaffForService(institutionId, service.name),
     name: service.name,
     description: service.description ?? '',
     feeType,
@@ -804,6 +860,8 @@ function normalizeCitizenService(service, index = 0) {
       (feeType === 'paid'
         ? 'Use only official receipted payment channels for this service.'
         : 'This service should be offered without any unofficial payment.'),
+    schedule: service.schedule ?? '',
+    documents: service.documents ?? '',
   };
 }
 
@@ -862,7 +920,7 @@ function getLeaderChainByCitizenLocation(location = {}) {
         reportUrl: buildCitizenDashboardReportUrl(institution.slug),
         qrCodeDataUrl: institution.qrCodeDataUrl ?? null,
         services: (institution.services ?? []).map((service, index) =>
-          normalizeCitizenService(service, index),
+          normalizeCitizenService(service, index, institution.institutionId),
         ),
         leader: leader
           ? {
@@ -982,6 +1040,7 @@ function buildComplaintSummary(item) {
     reporterProfile: item.reporterProfile ?? null,
     accusedLeaders: item.accusedLeaders ?? [],
     evidenceImage: item.evidenceImage ?? null,
+    evidenceDocument: item.evidenceDocument ?? null,
     voiceNote: item.voiceNote ?? null,
     sourceInstitution,
     location: getComplaintLocation(item),
@@ -1070,7 +1129,9 @@ function buildCitizenInstitutionEntry(institution) {
     officialEmail: institution.officialEmail ?? null,
     officialPhone: institution.officialPhone ?? null,
     servicesCount: institution.services?.length ?? 0,
-    services: (institution.services ?? []).map((service, index) => normalizeCitizenService(service, index)),
+    services: (institution.services ?? []).map((service, index) =>
+      normalizeCitizenService(service, index, institution.institutionId),
+    ),
     helpLeader,
     accountabilityContacts,
     reportUrl: buildCitizenDashboardReportUrl(institution.slug),
@@ -1589,6 +1650,10 @@ function canUserRespondToComplaint(user, complaint) {
 
   if (ADMIN_DASHBOARD_ROLES.has(user.role)) {
     return complaint.assignedOfficerId === user.userId;
+  }
+
+  if (user.role === 'rib_officer_1' || user.role === 'rib_officer_2') {
+    return matchesUserScope(user, getComplaintLocation(complaint));
   }
 
   const currentEmployee = findInstitutionEmployeeByUser(user);
@@ -2401,6 +2466,7 @@ router.post('/citizen/complaints', (request, response) => {
     accusedLeaderEmployeeIds: payload.accusedLeaderEmployeeIds ?? [],
     accusedLeaders: accusedLeaderEntries.map((entry) => serializeLeaderChainEntry(entry)),
     evidenceImage: payload.evidenceImage ?? null,
+    evidenceDocument: payload.evidenceDocument ?? null,
     voiceNote: payload.voiceNote ?? null,
     responses: [],
     response: null,

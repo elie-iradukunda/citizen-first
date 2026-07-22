@@ -114,6 +114,10 @@ function shouldAutoCreateDatabase() {
   return process.env.DB_AUTO_CREATE_DATABASE !== 'false';
 }
 
+function isDatabaseDisabled() {
+  return process.env.DB_DISABLED === 'true' || process.env.SKIP_DATABASE === 'true';
+}
+
 export function getDatabaseConnection() {
   if (!sequelize) {
     const databaseConfig = readDatabaseConfig();
@@ -131,7 +135,13 @@ export function getDatabaseConnection() {
 
 export async function initializeDatabase() {
   if (isInitialized) {
-    return getDatabaseConnection();
+    return isDatabaseDisabled() ? null : getDatabaseConnection();
+  }
+
+  if (isDatabaseDisabled()) {
+    isInitialized = true;
+    console.warn('Database initialization skipped because DB_DISABLED=true.');
+    return null;
   }
 
   if (shouldAutoCreateDatabase()) {

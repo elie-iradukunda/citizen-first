@@ -4,6 +4,7 @@ import { institutions } from '../data/mockData.js';
 import {
   institutionDepartments,
   institutionEmployees,
+  institutionStaffServiceLinks,
   registeredInstitutions,
 } from '../data/registrationData.js';
 
@@ -48,6 +49,7 @@ function normalizeLegacyInstitution(item) {
     officialPhone: null,
     services: [],
     departments: [],
+    staff: [],
     location: {
       country: 'Rwanda',
       province: null,
@@ -74,6 +76,28 @@ function normalizeRegisteredInstitution(item) {
   const leader = institutionEmployees.find(
     (employee) => employee.institutionId === item.institutionId && employee.isLeader === true,
   );
+  const staff = institutionEmployees
+    .filter((employee) => employee.institutionId === item.institutionId)
+    .slice()
+    .sort((left, right) => {
+      if (left.isLeader !== right.isLeader) {
+        return left.isLeader ? -1 : 1;
+      }
+
+      return left.fullName.localeCompare(right.fullName);
+    })
+    .map((employee) => ({
+      employeeId: employee.employeeId,
+      fullName: employee.fullName,
+      positionTitle: employee.positionTitle,
+      positionKinyarwanda: employee.positionKinyarwanda ?? '',
+      phone: employee.phone,
+      email: employee.email ?? null,
+      reportsTo: employee.reportsTo ?? '',
+      description: employee.description ?? '',
+      status: employee.status,
+      isLeader: employee.isLeader === true,
+    }));
   const departments = institutionDepartments
     .filter((department) => department.institutionId === item.institutionId)
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -87,6 +111,36 @@ function normalizeRegisteredInstitution(item) {
     employeeCount: getEmployeeCountForInstitution(child.institutionId),
   }));
 
+  const services = (item.services ?? []).map((service) => {
+    const responsibleStaff = institutionStaffServiceLinks
+      .filter(
+        (link) =>
+          link.institutionId === item.institutionId &&
+          link.serviceName.toLowerCase() === service.name.toLowerCase(),
+      )
+      .map((link) => {
+        const employee = institutionEmployees.find(
+          (entry) => entry.employeeId === link.employeeId,
+        );
+
+        return employee
+          ? {
+              employeeId: employee.employeeId,
+              fullName: employee.fullName,
+              positionTitle: employee.positionTitle,
+              phone: employee.phone,
+              email: employee.email ?? null,
+            }
+          : null;
+      })
+      .filter(Boolean);
+
+    return {
+      ...service,
+      responsibleStaff,
+    };
+  });
+
   return {
     institutionId: item.institutionId,
     slug: item.slug,
@@ -96,8 +150,9 @@ function normalizeRegisteredInstitution(item) {
     officeAddress: item.officeAddress ?? null,
     officialEmail: item.officialEmail ?? null,
     officialPhone: item.officialPhone ?? null,
-    services: item.services ?? [],
+    services,
     departments,
+    staff,
     location: item.location,
     source: 'registered',
     qrCodeDataUrl: item.qrCodeDataUrl,
@@ -152,7 +207,9 @@ router.get('/:slug', (request, response) => {
   });
 });
 
-router.get('/:slug/qr', async (request, response, next) => {
+// '/:slug/access-qr' is the route name documented in the dissertation (Table 17:
+// API Design); '/:slug/qr' is kept as the original alias.
+router.get(['/:slug/qr', '/:slug/access-qr'], async (request, response, next) => {
   try {
     const institution = getAllInstitutions().find((item) => item.slug === request.params.slug);
 

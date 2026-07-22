@@ -11,3 +11,9 @@ client/public/research-book/
 ~$*.docx
 Esther.docx
 KASINE new (1) - *backup.*
+*.docx
+*.pdf
+*.pptx
+tmp_final_dissertation_assets/
+test-results/
+e2e/screenshots/

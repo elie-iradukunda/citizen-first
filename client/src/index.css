@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -11,6 +11,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
 html {
@@ -40,4 +41,180 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+/* ---------------------------------------------------------------------------
+   Fuel-Loyalty style shared component classes (light theme)
+--------------------------------------------------------------------------- */
+.app-input,
+.app-select {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: #334155;
+}
+.app-input::placeholder {
+  color: #94a3b8;
+}
+.app-input:focus,
+.app-select:focus {
+  outline: none;
+  border-color: #74c99a;
+  box-shadow: 0 0 0 3px rgba(11, 155, 75, 0.14);
+}
+.app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  background: #087536;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  transition: background 0.15s ease;
+}
+.app-button:hover {
+  background: #0b9b4b;
+}
+.app-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+.field-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* ---------------------------------------------------------------------------
+   Dashboard workspace — light Fuel-Loyalty theme.
+   Dashboard pages use bg-white / bg-mist / text-ink / text-slate; these rules
+   keep them light and give the green (brand) accents.
+--------------------------------------------------------------------------- */
+.saccfp-dashboard {
+  color: #334155;
+  background: #f5f8fc;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.saccfp-dashboard main {
+  min-height: calc(100vh - 76px);
+  background: #f5f8fc;
+}
+
+/* surfaces */
+.saccfp-dashboard .bg-mist {
+  background-color: #f1f5f9;
+}
+
+/* text tokens */
+.saccfp-dashboard .text-ink {
+  color: #0f172a;
+}
+.saccfp-dashboard .text-slate {
+  color: #64748b;
+}
+.saccfp-dashboard .text-tide,
+.saccfp-dashboard .text-cyan-200,
+.saccfp-dashboard .text-cyan-100 {
+  color: #087536;
+}
+.saccfp-dashboard .text-gold,
+.saccfp-dashboard .text-clay {
+  color: #087536;
+}
+
+/* accent surfaces -> brand green */
+.saccfp-dashboard .bg-ink {
+  background: linear-gradient(135deg, #087536 0%, #0b9b4b 100%);
+  color: #ffffff;
+}
+.saccfp-dashboard .bg-gold {
+  background: linear-gradient(135deg, #0b9b4b 0%, #38ad72 100%);
+  color: #ffffff;
+}
+.saccfp-dashboard .bg-emerald-500,
+.saccfp-dashboard .bg-emerald-600 {
+  background: #087536;
+  color: #ffffff;
+}
+.saccfp-dashboard .text-emerald-600,
+.saccfp-dashboard .text-emerald-500 {
+  color: #087536;
+}
+
+/* text sitting on green hero/accent surfaces stays light for contrast */
+.saccfp-dashboard .bg-ink .text-tide,
+.saccfp-dashboard .bg-ink .text-cyan-200,
+.saccfp-dashboard .bg-ink .text-cyan-100,
+.saccfp-dashboard .bg-ink .text-gold,
+.saccfp-dashboard .bg-gold .text-tide,
+.saccfp-dashboard .bg-emerald-600 .text-tide,
+.saccfp-dashboard .bg-emerald-500 .text-tide {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* hardcoded dark surfaces used in some panels -> light */
+.saccfp-dashboard .bg-\[\#03140f\],
+.saccfp-dashboard .bg-\[\#04110d\],
+.saccfp-dashboard .bg-\[\#07110c\],
+.saccfp-dashboard .bg-\[\#052018\] {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+/* borders */
+.saccfp-dashboard .border-ink\/10,
+.saccfp-dashboard .border-ink\/15,
+.saccfp-dashboard .border-white\/20,
+.saccfp-dashboard .border-tide\/20 {
+  border-color: #e2e8f0;
+}
+
+/* soft shadow on light cards */
+.saccfp-dashboard .shadow-soft {
+  box-shadow: 0 2px 10px rgba(15, 50, 90, 0.05);
+}
+
+/* form controls */
+.saccfp-dashboard input,
+.saccfp-dashboard select,
+.saccfp-dashboard textarea {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+.saccfp-dashboard input:focus,
+.saccfp-dashboard select:focus,
+.saccfp-dashboard textarea:focus {
+  border-color: #74c99a;
+  box-shadow: 0 0 0 3px rgba(11, 155, 75, 0.14);
+}
+.saccfp-dashboard input::placeholder,
+.saccfp-dashboard textarea::placeholder {
+  color: #94a3b8;
+}
+.saccfp-dashboard select option {
+  background: #ffffff;
+  color: #334155;
+}
+.saccfp-dashboard table tr,
+.saccfp-dashboard thead tr {
+  border-color: #eef2f7;
 }

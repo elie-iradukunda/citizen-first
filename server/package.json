@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "test": "node tests/run.js",
     "build": "node ./scripts/build-placeholder.js",
     "lint": "node ./scripts/lint-placeholder.js"
   },

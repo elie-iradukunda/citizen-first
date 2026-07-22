@@ -2,42 +2,18 @@ import { Link } from 'react-router-dom';
 
 function Footer() {
   return (
-    <footer className="mt-12 bg-ink text-white">
-      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1.25fr_1fr_1fr] lg:px-8">
+    <footer className="border-t border-slate-200 bg-white text-slate-600">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 text-sm md:flex-row md:items-center md:justify-between lg:px-8">
         <div>
-          <p className="font-display text-2xl font-black uppercase tracking-[0.06em]">SACCFP</p>
-          <p className="mt-4 max-w-md text-sm leading-7 text-white/80">
-            QR-enabled anti-corruption and citizen feedback platform for RIB case intake, evidence
-            support, escalation, and transparent tracking.
-          </p>
-          <p className="mt-4 text-sm font-semibold text-gold">Emergency 112 - Anti-Corruption 997</p>
+          <p className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">SACCFP</p>
+          <p className="mt-1 text-slate-500">QR service scan, citizen account, evidence reporting, and RIB follow-up.</p>
         </div>
-
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-gold">Public Pages</p>
-          <div className="mt-4 grid gap-2 text-sm text-white/85">
-            <Link to="/">Home</Link>
-            <Link to="/governance-structure">RIB Workflow</Link>
-            <Link to="/services">RIB Services</Link>
-            <Link to="/emergency">Hotlines</Link>
-            <Link to="/assistant">AI Assistant</Link>
-          </div>
+        <div className="flex flex-wrap gap-4 font-semibold text-slate-600">
+          <Link to="/register/citizen" className="hover:text-brand-600">Create Account</Link>
+          <Link to="/login?redirect=%2Fdashboard%2Fcitizen%2Fscan-services" className="hover:text-brand-600">Login</Link>
+          <a href="mailto:support@saccfp.rw" className="hover:text-brand-600">support@saccfp.rw</a>
+          <span className="text-brand-600">997</span>
         </div>
-
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-gold">Citizen Tools</p>
-          <div className="mt-4 grid gap-2 text-sm text-white/85">
-            <Link to="/register/citizen">Citizen Registration</Link>
-            <Link to="/register/invite">RIB Invite</Link>
-            <Link to="/register/institution">RIB Institution Registration</Link>
-            <Link to="/report">Submit RIB Report</Link>
-            <Link to="/track">Track RIB Case</Link>
-            <Link to="/dashboards">Dashboards</Link>
-          </div>
-        </div>
-      </div>
-      <div className="border-t border-white/10 py-4 text-center text-xs text-white/60">
-        Smart Anti-Corruption and Citizen Feedback Platform using QR Code Technology - Built for RIB reporting and accountable feedback
       </div>
     </footer>
   );

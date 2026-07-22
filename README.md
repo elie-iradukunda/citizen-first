@@ -24,26 +24,24 @@ This deployment is configured for the corrected research case study:
 ## Dashboard Modules
 
 - Citizen dashboard: `/dashboard/citizen`
-- Citizen issue submit: `/dashboard/citizen/submit`
-- Citizen services explorer: `/dashboard/citizen/services`
-- Citizen RIB roles explorer: `/dashboard/citizen/leaders`
-- RIB officer dashboard: `/dashboard/officer`
-- RIB oversight admin dashboard: `/dashboard/admin`
+- Institution admin dashboard: `/dashboard/institution`
+- RIB Officer 1 dashboard: `/dashboard/rib-officer-1`
+- RIB Officer 2 dashboard: `/dashboard/rib-officer-2`
 - Dashboard hub: `/dashboards`
 
 Dashboard behavior is role-aware:
 
-- Sidebar navigation is filtered by logged-in role.
-- Level leaders see governance mandate, required decisions, and scoped queue.
-- Invite setup can use active login session (access key input optional).
+- Citizen sees QR services, report submission, my reports, and tracking.
+- Institution admin sees services, departments, staff registration, staff-service linking, and QR generation.
+- RIB Officer 1 sees new reports, evidence review, three-day response, citizen response, and escalation.
+- RIB Officer 2 sees escalated reports, overdue cases, final review, status updates, and follow-up summary.
 
 ## Presentation Demo Accounts
 
-- RIB Oversight Admin: `rib.oversight@citizenfirst.gov.rw` / `RibAdmin@12345`
-- RIB Intake Officer: `rib.intake@citizenfirst.gov.rw` / `RibOfficer@12345`
-- RIB Investigator: `rib.investigator@citizenfirst.gov.rw` / `RibInvestigator@12345`
-- RIB Supervisor: `rib.supervision@citizenfirst.gov.rw` / `RibSupervisor@12345`
-- Citizen Demo: `citizen.demo@citizenfirst.gov.rw` / `Citizen@12345`
+- Citizen: `citizen.demo@saccfp.rw` / `Citizen@12345`
+- Institution Admin: `institution.admin@saccfp.rw` / `Institution@12345`
+- RIB Officer 1: `rib.officer1@saccfp.rw` / `RibOfficer1@12345`
+- RIB Officer 2: `rib.officer2@saccfp.rw` / `RibOfficer2@12345`
 
 Access keys are also shown on the login screen for presentation use.
 
@@ -113,6 +111,57 @@ Session persistence:
 - `POST /api/registration/institutions/complete`
 - `POST /api/registration/citizens`
 
+## Institution Management CRUD (auth or `x-access-key` required)
+
+- `GET /api/registration/institutions/:institutionId/manage`
+- `PATCH /api/registration/institutions/:institutionId/manage`
+- `DELETE /api/registration/institutions/:institutionId` (national admin only; blocked while child units exist)
+- Services (support `feeType`, `officialFeeRwf`, `accessNote`, `schedule`, `documents`):
+  - `POST /api/registration/institutions/:institutionId/services`
+  - `PATCH /api/registration/institutions/:institutionId/services/:serviceName`
+  - `DELETE /api/registration/institutions/:institutionId/services/:serviceName`
+- Departments:
+  - `POST /api/registration/institutions/:institutionId/departments`
+  - `PATCH /api/registration/institutions/:institutionId/departments/:departmentId`
+  - `DELETE /api/registration/institutions/:institutionId/departments/:departmentId`
+- Staff:
+  - `POST /api/registration/institutions/:institutionId/employees` (optional platform login account)
+  - `POST /api/registration/institutions/:institutionId/employees/:employeeId/account`
+  - `PATCH /api/registration/institutions/:institutionId/employees/:employeeId`
+  - `DELETE /api/registration/institutions/:institutionId/employees/:employeeId` (leader is protected; linked login is deactivated)
+- Staff-to-service links (dissertation "Link Staff to Services" feature):
+  - `POST /api/registration/institutions/:institutionId/service-links` (`{ employeeId, serviceName }`)
+  - `DELETE /api/registration/institutions/:institutionId/service-links/:linkId`
+  - Linked staff appear as `responsibleStaff` on each service in the public profile and citizen context.
+
+`GET /api/institutions/:slug/access-qr` (dissertation route name) is an alias of `GET /api/institutions/:slug/qr`.
+
+## Seeded presentation data (matches the dissertation test-data design)
+
+- Kacyiru Sector Office: 4 services (Civil status certificate support 500 RWF, Land document
+  guidance, Social affairs and Mutuelle support, Citizen complaint reception), 4 departments
+  (Civil Status, Land and Infrastructure, Social Affairs, Customer Care), 5 staff
+  (leader + Agnes Mukamana, Jean Bosco Ndayisenga, Claudine Uwase, Patrick Habimana),
+  and staff-to-service links for each service.
+- RIB workflow chain: QR Access -> Evidence Triage -> RIB Intake -> Investigation Review ->
+  Supervisory Review -> National Oversight, with leaders, staff, and departments per level.
+- Demo complaints in every workflow state: submitted, in review, responded, escalated,
+  and resolved (with responses, escalation history, and evidence flags).
+
+The public institution profile (`GET /api/institutions/:slug`) now also exposes the `staff` directory
+(leaders and support staff with contacts and duties) next to `services` and `departments`.
+
+## Test suites
+
+- Backend (in-memory API, no DB needed): `npm test`
+  - includes the full lifecycle suite: RIB creates an institution (QR generated at creation) ->
+    leader logs in -> service/department/staff CRUD -> citizen registers and scans the QR ->
+    corruption report with evidence -> respond -> escalate (district -> province -> national) ->
+    citizen accepts -> resolved -> RIB deletes the institution.
+- End-to-end UI (Playwright + real Chrome): start `DB_DISABLED=true npm run dev`, then `npm run test:e2e`
+  - `e2e/full-lifecycle.spec.js` drives the same journey through the UI, including the
+    view-details pop-up modals for services, staff, departments, and citizen cases.
+
 Registration login credentials:
 
 - Citizen registration now requires `email` + `password`.
@@ -150,9 +199,10 @@ The citizen demo profile uses Kigali City, Gasabo, Kacyiru, Kamatamu, Ubumwe as 
 4. Set national admin access key for first top-level invite:
    `SYSTEM_ADMIN_ACCESS_KEY=CF-ADMIN-2026`
 5. Dashboard login keys:
-   `DASHBOARD_ADMIN_ACCESS_KEY=CF-DASH-ADMIN-2026`
-   `DASHBOARD_OFFICER_ACCESS_KEY=CF-DASH-OFFICER-2026`
-   `DASHBOARD_CITIZEN_ACCESS_KEY=CF-DASH-CITIZEN-2026`
+   `DASHBOARD_CITIZEN_ACCESS_KEY=CF-CITIZEN-2026`
+   `DASHBOARD_INSTITUTION_ADMIN_ACCESS_KEY=CF-INSTITUTION-2026`
+   `DASHBOARD_RIB_OFFICER_ONE_ACCESS_KEY=CF-RIB-OFFICER1-2026`
+   `DASHBOARD_RIB_OFFICER_TWO_ACCESS_KEY=CF-RIB-OFFICER2-2026`
 6. Seeded linked hierarchy data:
    `SEED_HIERARCHY_TEST_DATA=true`
 

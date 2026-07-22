@@ -12,6 +12,9 @@ export const USER_LEVELS = [...GOVERNANCE_LEVELS, 'citizen'];
 export const USER_ROLES = [
   'national_admin',
   'oversight_admin',
+  'institution_admin',
+  'rib_officer_1',
+  'rib_officer_2',
   'institution_officer',
   'province_leader',
   'district_leader',

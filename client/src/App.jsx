@@ -1,6 +1,5 @@
-import AdminDashboardPage from './pages/AdminDashboardPage';
+import { lazy, Suspense } from 'react';
 import AssistantPage from './pages/AssistantPage';
-import CitizenDashboardPage from './pages/CitizenDashboardPage';
 import CitizenRegistrationPage from './pages/CitizenRegistrationPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -13,7 +12,6 @@ import HomePage from './pages/HomePage';
 import InstitutionInvitePage from './pages/InstitutionInvitePage';
 import InstitutionRegistrationPage from './pages/InstitutionRegistrationPage';
 import LoginPage from './pages/LoginPage';
-import OfficerDashboardPage from './pages/OfficerDashboardPage';
 import PublicInstitutionAccessPage from './pages/PublicInstitutionAccessPage';
 import PublicServicesPage from './pages/PublicServicesPage';
 import ReportPage from './pages/ReportPage';
@@ -21,16 +19,55 @@ import TrackPage from './pages/TrackPage';
 import {
   ADMIN_DASHBOARD_ROLES,
   CITIZEN_DASHBOARD_ROLES,
+  INSTITUTION_DASHBOARD_ROLES,
   INVITE_ROLES,
   OFFICER_DASHBOARD_ROLES,
 } from './lib/authRouting';
 
+const CitizenDashboardHomePage = lazy(() =>
+  import('./pages/CitizenDashboardPages').then((module) => ({
+    default: module.CitizenDashboardHomePage,
+  })),
+);
+const CitizenScanServicesPage = lazy(() =>
+  import('./pages/CitizenDashboardPages').then((module) => ({
+    default: module.CitizenScanServicesPage,
+  })),
+);
+const CitizenSubmitReportPage = lazy(() =>
+  import('./pages/CitizenDashboardPages').then((module) => ({
+    default: module.CitizenSubmitReportPage,
+  })),
+);
+const CitizenMyReportsPage = lazy(() =>
+  import('./pages/CitizenDashboardPages').then((module) => ({
+    default: module.CitizenMyReportsPage,
+  })),
+);
+const CitizenTrackCasePage = lazy(() =>
+  import('./pages/CitizenDashboardPages').then((module) => ({
+    default: module.CitizenTrackCasePage,
+  })),
+);
+const InstitutionAdminDashboardPage = lazy(() => import('./pages/InstitutionAdminDashboardPage'));
+const RibAdminDashboardPage = lazy(() => import('./pages/RibAdminDashboardPage'));
+const RibOfficerDashboardPage = lazy(() => import('./pages/RibOfficerDashboardPage'));
+
+function RouteLoader() {
+  return (
+    <div className="min-h-screen bg-mist px-6 py-12 text-sm font-semibold text-ink">
+      Loading dashboard...
+    </div>
+  );
+}
+
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
+    <Suspense fallback={<RouteLoader />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
 
-      <Route element={<PublicLayout />}>
+        <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/services" element={<PublicServicesPage />} />
           <Route path="/governance-structure" element={<GovernanceStructurePage />} />
@@ -41,33 +78,40 @@ function App() {
           <Route path="/institutions/:slug" element={<PublicInstitutionAccessPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/track" element={<TrackPage />} />
-      </Route>
+        </Route>
 
-      <Route element={<ProtectedRoute />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboards" element={<DashboardHubPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboards" element={<DashboardHubPage />} />
 
-          <Route element={<ProtectedRoute allowedRoles={[...INVITE_ROLES]} />}>
-            <Route path="/register/invite" element={<InstitutionInvitePage />} />
-          </Route>
+            <Route element={<ProtectedRoute allowedRoles={[...INVITE_ROLES]} />}>
+              <Route path="/register/invite" element={<InstitutionInvitePage />} />
+            </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[...CITIZEN_DASHBOARD_ROLES]} />}>
-            <Route path="/dashboard/citizen" element={<CitizenDashboardPage mode="overview" />} />
-            <Route path="/dashboard/citizen/submit" element={<CitizenDashboardPage mode="submit" />} />
-            <Route path="/dashboard/citizen/services" element={<CitizenDashboardPage mode="services" />} />
-            <Route path="/dashboard/citizen/leaders" element={<CitizenDashboardPage mode="leaders" />} />
-          </Route>
+            <Route element={<ProtectedRoute allowedRoles={[...CITIZEN_DASHBOARD_ROLES]} />}>
+              <Route path="/dashboard/citizen" element={<CitizenDashboardHomePage />} />
+              <Route path="/dashboard/citizen/scan-services" element={<CitizenScanServicesPage />} />
+              <Route path="/dashboard/citizen/submit" element={<CitizenSubmitReportPage />} />
+              <Route path="/dashboard/citizen/reports" element={<CitizenMyReportsPage />} />
+              <Route path="/dashboard/citizen/track" element={<CitizenTrackCasePage />} />
+            </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[...OFFICER_DASHBOARD_ROLES]} />}>
-            <Route path="/dashboard/officer" element={<OfficerDashboardPage />} />
-          </Route>
+            <Route element={<ProtectedRoute allowedRoles={[...INSTITUTION_DASHBOARD_ROLES]} />}>
+              <Route path="/dashboard/institution" element={<InstitutionAdminDashboardPage />} />
+            </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[...ADMIN_DASHBOARD_ROLES]} />}>
-            <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
+            <Route element={<ProtectedRoute allowedRoles={[...OFFICER_DASHBOARD_ROLES]} />}>
+              <Route path="/dashboard/rib-officer-1" element={<RibOfficerDashboardPage />} />
+              <Route path="/dashboard/rib-officer-2" element={<RibOfficerDashboardPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={[...ADMIN_DASHBOARD_ROLES]} />}>
+              <Route path="/dashboard/admin" element={<RibAdminDashboardPage />} />
+            </Route>
           </Route>
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 

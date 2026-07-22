@@ -156,6 +156,14 @@ export function registerCitizen(payload) {
   });
 }
 
+export function createTestingUser(payload) {
+  return request('/api/registration/testing-users', {
+    method: 'POST',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchInstitutionManagement(institutionId) {
   return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/manage`, {
     headers: getAuthHeaders(),
@@ -187,4 +195,120 @@ export function createInstitutionStaffAccount(institutionId, employeeId, payload
       body: JSON.stringify(payload),
     },
   );
+}
+
+export function updateInstitutionStaffMember(institutionId, employeeId, payload) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/employees/${encodeURIComponent(employeeId)}`,
+    {
+      method: 'PATCH',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function deleteInstitutionStaffMember(institutionId, employeeId) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/employees/${encodeURIComponent(employeeId)}`,
+    {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    },
+  );
+}
+
+export function createInstitutionService(institutionId, payload) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/services`, {
+    method: 'POST',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateInstitutionService(institutionId, serviceName, payload) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/services/${encodeURIComponent(serviceName)}`,
+    {
+      method: 'PATCH',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function deleteInstitutionService(institutionId, serviceName) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/services/${encodeURIComponent(serviceName)}`,
+    {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    },
+  );
+}
+
+export function createInstitutionDepartment(institutionId, payload) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/departments`, {
+    method: 'POST',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateInstitutionDepartment(institutionId, departmentId, payload) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/departments/${encodeURIComponent(departmentId)}`,
+    {
+      method: 'PATCH',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function deleteInstitutionDepartment(institutionId, departmentId) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/departments/${encodeURIComponent(departmentId)}`,
+    {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    },
+  );
+}
+
+export function fetchRegisteredInstitutions() {
+  return request('/api/registration/institutions', {
+    headers: getAuthHeaders(),
+  });
+}
+
+export function fetchRegisteredCitizens() {
+  return request('/api/registration/citizens', {
+    headers: getAuthHeaders(),
+  });
+}
+
+export function createStaffServiceLink(institutionId, payload) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}/service-links`, {
+    method: 'POST',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteStaffServiceLink(institutionId, linkId) {
+  return request(
+    `/api/registration/institutions/${encodeURIComponent(institutionId)}/service-links/${encodeURIComponent(linkId)}`,
+    {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    },
+  );
+}
+
+export function deleteInstitution(institutionId) {
+  return request(`/api/registration/institutions/${encodeURIComponent(institutionId)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
 }

@@ -178,23 +178,33 @@ export const RWANDA_ADMINISTRATIVE_STRUCTURE = [
 
 const DEFAULT_ADMIN_ACCESS_KEY = process.env.SYSTEM_ADMIN_ACCESS_KEY ?? 'CF-ADMIN-2026';
 const TEST_ADMIN_ACCESS_KEY = process.env.TEST_ADMIN_ACCESS_KEY ?? 'CF-TEST-ADMIN-2026';
-const DEFAULT_DASHBOARD_ADMIN_KEY =
-  process.env.DASHBOARD_ADMIN_ACCESS_KEY ?? 'CF-DASH-ADMIN-2026';
-const DEFAULT_DASHBOARD_OFFICER_KEY =
-  process.env.DASHBOARD_OFFICER_ACCESS_KEY ?? 'CF-DASH-OFFICER-2026';
 const DEFAULT_DASHBOARD_CITIZEN_KEY =
-  process.env.DASHBOARD_CITIZEN_ACCESS_KEY ?? 'CF-DASH-CITIZEN-2026';
+  process.env.DASHBOARD_CITIZEN_ACCESS_KEY ?? 'CF-CITIZEN-2026';
+const DEFAULT_INSTITUTION_ADMIN_KEY =
+  process.env.DASHBOARD_INSTITUTION_ADMIN_ACCESS_KEY ?? 'CF-INSTITUTION-2026';
+const DEFAULT_RIB_OFFICER_ONE_KEY =
+  process.env.DASHBOARD_RIB_OFFICER_ONE_ACCESS_KEY ?? 'CF-RIB-OFFICER1-2026';
+const DEFAULT_RIB_OFFICER_TWO_KEY =
+  process.env.DASHBOARD_RIB_OFFICER_TWO_ACCESS_KEY ?? 'CF-RIB-OFFICER2-2026';
 
 const SYSTEM_ADMIN_EMAIL = process.env.SYSTEM_ADMIN_EMAIL ?? 'national.admin@citizenfirst.gov.rw';
 const SYSTEM_ADMIN_PASSWORD = process.env.SYSTEM_ADMIN_PASSWORD ?? 'Admin@12345';
 const TEST_ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? 'test.admin@citizenfirst.gov.rw';
 const TEST_ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? 'Admin@12345';
-const DASHBOARD_ADMIN_EMAIL = process.env.DASHBOARD_ADMIN_EMAIL ?? 'rib.oversight@citizenfirst.gov.rw';
-const DASHBOARD_ADMIN_PASSWORD = process.env.DASHBOARD_ADMIN_PASSWORD ?? 'RibAdmin@12345';
-const DASHBOARD_OFFICER_EMAIL = process.env.DASHBOARD_OFFICER_EMAIL ?? 'rib.intake@citizenfirst.gov.rw';
-const DASHBOARD_OFFICER_PASSWORD = process.env.DASHBOARD_OFFICER_PASSWORD ?? 'RibOfficer@12345';
-const DASHBOARD_CITIZEN_EMAIL = process.env.DASHBOARD_CITIZEN_EMAIL ?? 'citizen.demo@citizenfirst.gov.rw';
+const DASHBOARD_CITIZEN_EMAIL = process.env.DASHBOARD_CITIZEN_EMAIL ?? 'citizen.demo@saccfp.rw';
 const DASHBOARD_CITIZEN_PASSWORD = process.env.DASHBOARD_CITIZEN_PASSWORD ?? 'Citizen@12345';
+const DASHBOARD_INSTITUTION_ADMIN_EMAIL =
+  process.env.DASHBOARD_INSTITUTION_ADMIN_EMAIL ?? 'institution.admin@saccfp.rw';
+const DASHBOARD_INSTITUTION_ADMIN_PASSWORD =
+  process.env.DASHBOARD_INSTITUTION_ADMIN_PASSWORD ?? 'Institution@12345';
+const DASHBOARD_RIB_OFFICER_ONE_EMAIL =
+  process.env.DASHBOARD_RIB_OFFICER_ONE_EMAIL ?? 'rib.officer1@saccfp.rw';
+const DASHBOARD_RIB_OFFICER_ONE_PASSWORD =
+  process.env.DASHBOARD_RIB_OFFICER_ONE_PASSWORD ?? 'RibOfficer1@12345';
+const DASHBOARD_RIB_OFFICER_TWO_EMAIL =
+  process.env.DASHBOARD_RIB_OFFICER_TWO_EMAIL ?? 'rib.officer2@saccfp.rw';
+const DASHBOARD_RIB_OFFICER_TWO_PASSWORD =
+  process.env.DASHBOARD_RIB_OFFICER_TWO_PASSWORD ?? 'RibOfficer2@12345';
 
 export function createPasswordCredentials(password, userIdSeed) {
   const passwordSalt = crypto
@@ -239,29 +249,58 @@ export const systemUsers = [
     createdAt: '2026-04-03T00:00:00.000Z',
   },
   {
-    userId: 'USR-DASHBOARD-ADMIN-001',
-    role: 'oversight_admin',
-    level: 'national',
-    fullName: 'RIB Oversight Dashboard Admin',
-    email: DASHBOARD_ADMIN_EMAIL,
-    nationalId: null,
-    institutionId: 'RIB-NATIONAL',
-    accessKey: DEFAULT_DASHBOARD_ADMIN_KEY,
+    userId: 'USR-DASHBOARD-INSTITUTION-001',
+    role: 'institution_admin',
+    level: 'sector',
+    fullName: 'Kacyiru Sector Institution Admin',
+    email: DASHBOARD_INSTITUTION_ADMIN_EMAIL,
+    nationalId: '1199000099997001',
+    institutionId: 'GOV-KACYIRU-SECTOR',
+    accessKey: DEFAULT_INSTITUTION_ADMIN_KEY,
     status: 'active',
-    ...createPasswordCredentials(DASHBOARD_ADMIN_PASSWORD, 'USR-DASHBOARD-ADMIN-001'),
+    ...createPasswordCredentials(DASHBOARD_INSTITUTION_ADMIN_PASSWORD, 'USR-DASHBOARD-INSTITUTION-001'),
+    location: {
+      country: 'Rwanda',
+      province: 'Kigali City',
+      district: 'Gasabo',
+      sector: 'Kacyiru',
+      cell: '',
+      village: '',
+    },
     createdAt: '2026-04-03T00:00:00.000Z',
   },
   {
-    userId: 'USR-DASHBOARD-OFFICER-001',
-    role: 'institution_officer',
-    level: 'sector',
-    fullName: 'RIB Intake Officer',
-    email: DASHBOARD_OFFICER_EMAIL,
+    userId: 'USR-DASHBOARD-RIB1-001',
+    role: 'rib_officer_1',
+    level: 'national',
+    fullName: 'RIB Officer 1',
+    email: DASHBOARD_RIB_OFFICER_ONE_EMAIL,
     nationalId: '1199000099998888',
     institutionId: 'RIB-INTAKE',
-    accessKey: DEFAULT_DASHBOARD_OFFICER_KEY,
+    accessKey: DEFAULT_RIB_OFFICER_ONE_KEY,
     status: 'active',
-    ...createPasswordCredentials(DASHBOARD_OFFICER_PASSWORD, 'USR-DASHBOARD-OFFICER-001'),
+    ...createPasswordCredentials(DASHBOARD_RIB_OFFICER_ONE_PASSWORD, 'USR-DASHBOARD-RIB1-001'),
+    location: {
+      country: 'Rwanda',
+      province: 'Kigali City',
+      district: 'Gasabo',
+      sector: 'Kacyiru',
+      cell: 'Kamatamu',
+      village: '',
+    },
+    createdAt: '2026-04-03T00:00:00.000Z',
+  },
+  {
+    userId: 'USR-DASHBOARD-RIB2-001',
+    role: 'rib_officer_2',
+    level: 'national',
+    fullName: 'RIB Officer 2',
+    email: DASHBOARD_RIB_OFFICER_TWO_EMAIL,
+    nationalId: '1199000099998889',
+    institutionId: 'RIB-ESCALATION',
+    accessKey: DEFAULT_RIB_OFFICER_TWO_KEY,
+    status: 'active',
+    ...createPasswordCredentials(DASHBOARD_RIB_OFFICER_TWO_PASSWORD, 'USR-DASHBOARD-RIB2-001'),
     location: {
       country: 'Rwanda',
       province: 'Kigali City',
@@ -303,6 +342,8 @@ export const registeredInstitutions = [];
 export const institutionDepartments = [];
 
 export const institutionEmployees = [];
+
+export const institutionStaffServiceLinks = [];
 
 export const registeredCitizens = [
   {
@@ -441,9 +482,9 @@ const RIB_CASE_STUDY_INSTITUTIONS = [
       fullName: 'Sandrine Uwase',
       nationalId: '1199000088881031',
       phone: '+250788997103',
-      email: DASHBOARD_OFFICER_EMAIL,
-      password: DASHBOARD_OFFICER_PASSWORD,
-      accessKey: DEFAULT_DASHBOARD_OFFICER_KEY,
+      email: DASHBOARD_RIB_OFFICER_ONE_EMAIL,
+      password: DASHBOARD_RIB_OFFICER_ONE_PASSWORD,
+      accessKey: DEFAULT_RIB_OFFICER_ONE_KEY,
       positionTitle: 'RIB Anti-Corruption Intake Officer',
       positionKinyarwanda: 'Umukozi wakira amakuru ya ruswa',
       reportsTo: 'Economic and Financial Crimes Investigator',
@@ -564,6 +605,226 @@ const RIB_SERVICES = [
     accessNote: 'Unresolved cases are escalated through a defined digital pathway.',
   },
 ];
+
+const KACYIRU_SECTOR_OFFICE = {
+  institutionId: 'GOV-KACYIRU-SECTOR',
+  slug: 'kacyiru-sector-office',
+  level: 'sector',
+  parentInstitutionId: 'DIS-9002',
+  institutionName: 'Kacyiru Sector Office',
+  institutionType: 'Sector government institution',
+  officialEmail: 'kacyiru.sector@saccfp.rw',
+  officialPhone: '+250788300210',
+  officeAddress: 'Kacyiru Sector Office, Gasabo, Kigali',
+  location: {
+    country: 'Rwanda',
+    province: 'Kigali City',
+    district: 'Gasabo',
+    sector: 'Kacyiru',
+    cell: '',
+    village: '',
+  },
+  childLevel: 'cell',
+  childUnitLabel: 'cells',
+  expectedChildUnits: 2,
+  leaderNationalId: '1199000099997001',
+};
+
+const KACYIRU_SECTOR_SERVICES = [
+  {
+    name: 'Civil status certificate support',
+    description: 'Citizen receives guidance for certificates, family records, and civil registration requests.',
+    feeType: 'paid',
+    officialFeeRwf: 500,
+    accessNote: 'Official fee only, receipt required where payment applies.',
+    schedule: 'Monday to Friday, 08:00 - 15:00',
+    documents: 'National ID, application reference, payment receipt where required',
+  },
+  {
+    name: 'Land document guidance',
+    description: 'Citizen receives direction on land-related documents and office process.',
+    feeType: 'free',
+    officialFeeRwf: 0,
+    accessNote: 'No unofficial payment allowed.',
+    schedule: 'Tuesday and Thursday, 09:00 - 14:00',
+    documents: 'Land reference, owner ID, supporting document copy',
+  },
+  {
+    name: 'Social affairs and Mutuelle support',
+    description: 'Citizen receives social affairs guidance, Mutuelle support, and household assistance information.',
+    feeType: 'free',
+    officialFeeRwf: 0,
+    accessNote: 'Free guidance service - no payment allowed.',
+    schedule: 'Monday, Wednesday, Friday, 08:00 - 12:00',
+    documents: 'Household ID, Ubudehe or insurance reference where available',
+  },
+  {
+    name: 'Citizen complaint reception',
+    description: 'Citizen can report poor service or request guidance before RIB escalation.',
+    feeType: 'free',
+    officialFeeRwf: 0,
+    accessNote: 'This service is free.',
+    schedule: 'Every working day, 08:00 - 16:00',
+    documents: 'Case explanation, service reference, evidence where available',
+  },
+];
+
+const KACYIRU_SECTOR_DEPARTMENTS = [
+  {
+    departmentId: 'DEP-GOV-KACYIRU-CIVIL-STATUS',
+    name: 'Civil Status',
+    description: 'Certificates, family records, and civil registration support.',
+  },
+  {
+    departmentId: 'DEP-GOV-KACYIRU-LAND',
+    name: 'Land and Infrastructure',
+    description: 'Land document guidance and infrastructure service follow-up.',
+  },
+  {
+    departmentId: 'DEP-GOV-KACYIRU-SOCIAL',
+    name: 'Social Affairs',
+    description: 'Mutuelle, household support, and social protection services.',
+  },
+  {
+    departmentId: 'DEP-GOV-KACYIRU-CUSTOMER-CARE',
+    name: 'Customer Care',
+    description: 'Citizen complaint reception, guidance, and service follow-up desk.',
+  },
+];
+
+const KACYIRU_SECTOR_EMPLOYEES = [
+  {
+    employeeId: 'EMP-GOV-KACYIRU-L01',
+    fullName: 'Kacyiru Sector Institution Admin',
+    nationalId: '1199000099997001',
+    phone: '+250788300210',
+    email: DASHBOARD_INSTITUTION_ADMIN_EMAIL,
+    positionTitle: 'Sector Executive Secretary',
+    positionKinyarwanda: "Umunyamabanga Nshingwabikorwa w'Umurenge",
+    reportsTo: 'Gasabo District Authority',
+    description: 'Approves institutional services, staff records, and public QR access for Kacyiru Sector Office.',
+    isLeader: true,
+  },
+  {
+    employeeId: 'EMP-GOV-KACYIRU-S01',
+    fullName: 'Agnes Mukamana',
+    nationalId: '1199000099997101',
+    phone: '+250788111201',
+    email: 'agnes.mukamana@saccfp.rw',
+    positionTitle: 'Civil Status Officer',
+    positionKinyarwanda: 'Umukozi ushinzwe irangamimerere',
+    reportsTo: 'Sector Executive Secretary',
+    description: 'Handles civil status certificate support and record guidance.',
+    isLeader: false,
+  },
+  {
+    employeeId: 'EMP-GOV-KACYIRU-S02',
+    fullName: 'Jean Bosco Ndayisenga',
+    nationalId: '1199000099997102',
+    phone: '+250788111202',
+    email: 'jean.ndayisenga@saccfp.rw',
+    positionTitle: 'Land Service Officer',
+    positionKinyarwanda: "Umukozi ushinzwe ubutaka n'ibikorwaremezo",
+    reportsTo: 'Sector Executive Secretary',
+    description: 'Handles land document guidance and infrastructure follow-up.',
+    isLeader: false,
+  },
+  {
+    employeeId: 'EMP-GOV-KACYIRU-S03',
+    fullName: 'Claudine Uwase',
+    nationalId: '1199000099997103',
+    phone: '+250788111203',
+    email: 'claudine.uwase@saccfp.rw',
+    positionTitle: 'Social Affairs Officer',
+    positionKinyarwanda: 'Umukozi ushinzwe imibereho myiza',
+    reportsTo: 'Sector Executive Secretary',
+    description: 'Handles social affairs support and Mutuelle guidance.',
+    isLeader: false,
+  },
+  {
+    employeeId: 'EMP-GOV-KACYIRU-S04',
+    fullName: 'Patrick Habimana',
+    nationalId: '1199000099997104',
+    phone: '+250788111204',
+    email: 'patrick.habimana@saccfp.rw',
+    positionTitle: 'Customer Care Officer',
+    positionKinyarwanda: 'Umukozi ushinzwe kwakira abaturage',
+    reportsTo: 'Sector Executive Secretary',
+    description: 'Receives citizen complaints and guides reporting before RIB escalation.',
+    isLeader: false,
+  },
+];
+
+const KACYIRU_STAFF_SERVICE_LINKS = [
+  { employeeId: 'EMP-GOV-KACYIRU-S01', serviceName: 'Civil status certificate support' },
+  { employeeId: 'EMP-GOV-KACYIRU-S02', serviceName: 'Land document guidance' },
+  { employeeId: 'EMP-GOV-KACYIRU-S03', serviceName: 'Social affairs and Mutuelle support' },
+  { employeeId: 'EMP-GOV-KACYIRU-S04', serviceName: 'Citizen complaint reception' },
+];
+
+function seedKacyiruSectorOfficeData() {
+  const now = new Date().toISOString();
+
+  if (!registeredInstitutions.some((entry) => entry.institutionId === KACYIRU_SECTOR_OFFICE.institutionId)) {
+    registeredInstitutions.push({
+      ...KACYIRU_SECTOR_OFFICE,
+      services: KACYIRU_SECTOR_SERVICES,
+      employeeCount: KACYIRU_SECTOR_EMPLOYEES.length,
+      registeredChildUnits: 0,
+      childInstitutionIds: [],
+      createdByInviteId: 'INV-GOV-KACYIRU-SECTOR',
+      createdAt: now,
+      updatedAt: now,
+      status: 'active',
+      qrCodeDataUrl: null,
+    });
+  }
+
+  for (const department of KACYIRU_SECTOR_DEPARTMENTS) {
+    if (institutionDepartments.some((entry) => entry.departmentId === department.departmentId)) {
+      continue;
+    }
+
+    institutionDepartments.push({
+      ...department,
+      institutionId: KACYIRU_SECTOR_OFFICE.institutionId,
+      createdAt: now,
+    });
+  }
+
+  for (const employee of KACYIRU_SECTOR_EMPLOYEES) {
+    if (institutionEmployees.some((entry) => entry.employeeId === employee.employeeId)) {
+      continue;
+    }
+
+    institutionEmployees.push({
+      ...employee,
+      institutionId: KACYIRU_SECTOR_OFFICE.institutionId,
+      status: 'Active',
+      createdAt: now,
+    });
+  }
+
+  for (const [index, link] of KACYIRU_STAFF_SERVICE_LINKS.entries()) {
+    const exists = institutionStaffServiceLinks.some(
+      (entry) =>
+        entry.institutionId === KACYIRU_SECTOR_OFFICE.institutionId &&
+        entry.employeeId === link.employeeId &&
+        entry.serviceName === link.serviceName,
+    );
+    if (exists) {
+      continue;
+    }
+
+    institutionStaffServiceLinks.push({
+      linkId: `LNK-GOV-KACYIRU-${String(index + 1).padStart(3, '0')}`,
+      institutionId: KACYIRU_SECTOR_OFFICE.institutionId,
+      employeeId: link.employeeId,
+      serviceName: link.serviceName,
+      createdAt: now,
+    });
+  }
+}
 
 function seedRibCaseStudyData() {
   const now = new Date().toISOString();
@@ -773,4 +1034,5 @@ seedHierarchyTestData({
   createPasswordCredentials,
 });
 
+seedKacyiruSectorOfficeData();
 seedRibCaseStudyData();
