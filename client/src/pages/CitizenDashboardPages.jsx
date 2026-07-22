@@ -4,7 +4,9 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarDays,
+  Check,
   ClipboardList,
+  Clock,
   Eye,
   FileText,
   MapPin,
@@ -1701,6 +1703,70 @@ export function CitizenMyReportsPage() {
 /* 5. Track Case                                                       */
 /* ------------------------------------------------------------------ */
 
+const TRACK_STATUS_INFO = {
+  submitted: {
+    label: 'Submitted',
+    message: 'Your report was received and is waiting for a RIB officer to pick it up.',
+    icon: ClipboardList,
+    accent: '#0284c7',
+    soft: 'bg-sky-50 text-sky-700',
+  },
+  in_review: {
+    label: 'In review',
+    message: 'A RIB officer is reviewing your report and the evidence you shared.',
+    icon: Eye,
+    accent: '#d97706',
+    soft: 'bg-amber-50 text-amber-700',
+  },
+  responded: {
+    label: 'Responded',
+    message: 'The RIB officer replied. Read the response below and tell them if it solved your issue.',
+    icon: Send,
+    accent: '#0d9488',
+    soft: 'bg-teal-50 text-teal-700',
+  },
+  escalated: {
+    label: 'Escalated',
+    message: 'Your case was moved to a higher RIB level for deeper review.',
+    icon: ArrowRight,
+    accent: '#e11d48',
+    soft: 'bg-rose-50 text-rose-700',
+  },
+  resolved: {
+    label: 'Resolved',
+    message: 'This case is closed and marked resolved. Thank you for reporting.',
+    icon: ShieldCheck,
+    accent: '#059669',
+    soft: 'bg-emerald-50 text-emerald-700',
+  },
+  rejected: {
+    label: 'Closed',
+    message: 'This case was closed without further action.',
+    icon: AlertTriangle,
+    accent: '#64748b',
+    soft: 'bg-slate-100 text-slate-600',
+  },
+};
+
+const LIFECYCLE_STEPS = ['Submitted', 'In review', 'Responded', 'Resolved'];
+
+function statusToStepIndex(status) {
+  switch (status) {
+    case 'submitted':
+      return 0;
+    case 'in_review':
+    case 'escalated':
+      return 1;
+    case 'responded':
+      return 2;
+    case 'resolved':
+    case 'rejected':
+      return 3;
+    default:
+      return 0;
+  }
+}
+
 export function CitizenTrackCasePage() {
   const [searchParams] = useSearchParams();
   const { dashboard, isLoading, error } = useCitizenData();
@@ -1773,6 +1839,13 @@ export function CitizenTrackCasePage() {
     return baseTimeline;
   }, [activeCase]);
 
+  const statusInfo = activeCase
+    ? TRACK_STATUS_INFO[activeCase.status] ?? TRACK_STATUS_INFO.submitted
+    : null;
+  const stepIndex = activeCase ? statusToStepIndex(activeCase.status) : 0;
+  const deadlineLabel = activeCase ? daysUntil(activeCase.deadlineAt) : '';
+  const deadlineUrgent = deadlineLabel === 'Deadline passed' || deadlineLabel === '1 day left';
+
   if (isLoading) {
     return (
       <PageShell>
@@ -1797,8 +1870,8 @@ export function CitizenTrackCasePage() {
         description="Tracking shows case status, assigned RIB officer, deadline, response, and escalation history."
       />
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[0.65fr_1.35fr]">
-        <Card title="Search case ID" subtitle="Use the ID received after submitting a report." icon={Search}>
+      <div className="mt-5 grid gap-4 xl:grid-cols-[0.62fr_1.38fr]">
+        <Card title="Your reports" subtitle="Search a case ID or pick one below." icon={Search}>
           <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-brand-300">
             <Search className="h-4 w-4 text-slate-400" />
             <input
@@ -1808,72 +1881,178 @@ export function CitizenTrackCasePage() {
               className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
             />
           </label>
-          <div className="mt-3 space-y-1.5">
-            {cases.slice(0, 6).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setCaseId(item.id)}
-                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-[13px] font-semibold transition ${
-                  activeCase?.id === item.id
-                    ? 'border-brand-300 bg-emerald-50 text-slate-800'
-                    : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-brand-200'
-                }`}
-              >
-                <span>{item.id}</span>
-                <StatusPill status={item.status} />
-              </button>
-            ))}
+          <div className="mt-3 space-y-2">
+            {cases.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 px-3 py-4 text-[13px] text-slate-500">
+                You have no reports yet. Submit a report to start tracking it here.
+              </p>
+            ) : null}
+            {cases.slice(0, 8).map((item) => {
+              const isActive = activeCase?.id === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setCaseId(item.id)}
+                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                    isActive
+                      ? 'border-brand-300 bg-emerald-50 shadow-sm'
+                      : 'border-slate-100 bg-white hover:border-brand-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-bold text-slate-800">{item.id}</span>
+                    <StatusPill status={item.status} />
+                  </div>
+                  <p className="mt-1 truncate text-[11px] text-slate-400">{item.category}</p>
+                </button>
+              );
+            })}
           </div>
         </Card>
 
-        <Card
-          title={activeCase ? `Case ${activeCase.id}` : 'Case not found'}
-          subtitle={activeCase ? activeCase.category : 'Check the case ID and try again.'}
-          icon={ClipboardList}
-        >
-          {activeCase ? (
-            <>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  ['Status', formatLabel(activeCase.status)],
-                  ['Assigned RIB', activeCase.assignedOfficer],
-                  ['Deadline', daysUntil(activeCase.deadlineAt)],
-                  ['Current level', formatLabel(activeCase.currentLevel)],
-                ].map(([label, value]) => (
-                  <article key={label} className="rounded-lg bg-slate-50 px-3 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-                    <p className="mt-1 text-[13px] font-bold text-slate-800">{value}</p>
-                  </article>
-                ))}
+        {activeCase && statusInfo ? (
+          <div className="space-y-4">
+            {/* Status hero */}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-start gap-4 p-5">
+                <span
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white"
+                  style={{ backgroundColor: statusInfo.accent }}
+                >
+                  <statusInfo.icon className="h-6 w-6" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-black text-slate-900">Case {activeCase.id}</h2>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${statusInfo.soft}`}>
+                      {statusInfo.label}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[13px] leading-6 text-slate-500">{statusInfo.message}</p>
+                </div>
+                <div
+                  className={`rounded-xl px-4 py-3 text-center ${
+                    deadlineUrgent ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em]">
+                    <Clock className="h-3.5 w-3.5" /> Deadline
+                  </p>
+                  <p className="mt-1 text-sm font-black">{deadlineLabel}</p>
+                </div>
               </div>
 
-              <div className="mt-5 space-y-3">
-                {timeline.map((item, index) => (
-                  <article key={`${item.title}-${item.date}`} className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white"
-                      style={{ backgroundColor: BRAND }}
-                    >
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{item.title}</p>
-                      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: BRAND }}>
-                        {formatDate(item.date)}
-                      </p>
-                      <p className="mt-1.5 text-[13px] leading-6 text-slate-500">{item.detail}</p>
-                    </div>
-                  </article>
-                ))}
+              {/* Progress stepper */}
+              <div className="border-t border-slate-100 px-5 py-5">
+                <div className="flex items-center">
+                  {LIFECYCLE_STEPS.map((label, index) => {
+                    const done = index <= stepIndex;
+                    const isCurrent = index === stepIndex;
+                    return (
+                      <div key={label} className="flex flex-1 items-center last:flex-none">
+                        <div className="flex flex-col items-center">
+                          <span
+                            className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-black transition ${
+                              done ? 'text-white' : 'bg-slate-100 text-slate-400'
+                            } ${isCurrent ? 'ring-4 ring-emerald-100' : ''}`}
+                            style={done ? { backgroundColor: BRAND } : undefined}
+                          >
+                            {done ? <Check className="h-4 w-4" /> : index + 1}
+                          </span>
+                          <span
+                            className={`mt-2 text-center text-[11px] font-semibold ${
+                              done ? 'text-slate-700' : 'text-slate-400'
+                            }`}
+                          >
+                            {label}
+                          </span>
+                        </div>
+                        {index < LIFECYCLE_STEPS.length - 1 ? (
+                          <span
+                            className={`mx-1 mb-5 h-0.5 flex-1 rounded ${
+                              index < stepIndex ? '' : 'bg-slate-100'
+                            }`}
+                            style={index < stepIndex ? { backgroundColor: BRAND } : undefined}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </>
-          ) : (
+            </div>
+
+            {/* Key facts */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: 'Assigned RIB', value: activeCase.assignedOfficer, icon: UserRound },
+                { label: 'Current level', value: formatLabel(activeCase.currentLevel), icon: MapPin },
+                { label: 'Reported via', value: formatLabel(activeCase.submittedVia), icon: QrCode },
+                { label: 'Category', value: formatLabel(activeCase.category), icon: FileText },
+              ].map((fact) => (
+                <article key={fact.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50" style={{ color: BRAND }}>
+                    <fact.icon className="h-4 w-4" />
+                  </span>
+                  <p className="mt-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{fact.label}</p>
+                  <p className="mt-1 text-[13px] font-bold text-slate-800">{fact.value || '—'}</p>
+                </article>
+              ))}
+            </div>
+
+            {/* RIB response callout */}
+            {activeCase.response ? (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-5 shadow-sm">
+                <p className="flex items-center gap-2 text-sm font-black text-teal-800">
+                  <Send className="h-4 w-4" /> Response from {activeCase.assignedOfficer}
+                </p>
+                <p className="mt-2 text-[13px] leading-6 text-teal-900">{activeCase.response.message}</p>
+                <p className="mt-2 text-[11px] font-semibold text-teal-600">{formatDate(activeCase.response.respondedAt)}</p>
+              </div>
+            ) : null}
+
+            {/* Timeline */}
+            <Card title="Case history" subtitle="Every step is recorded so you never lose track." icon={CalendarDays}>
+              <ol className="relative space-y-6">
+                {timeline.map((item, index) => {
+                  const pending = /awaiting/i.test(item.title);
+                  const isLast = index === timeline.length - 1;
+                  return (
+                    <li key={`${item.title}-${item.date}`} className="relative flex gap-4">
+                      {!isLast ? (
+                        <span className="absolute left-[15px] top-8 h-[calc(100%+0.5rem)] w-0.5 bg-slate-100" aria-hidden />
+                      ) : null}
+                      <span
+                        className={`relative z-10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          pending ? 'border-2 border-dashed border-slate-300 bg-white text-slate-400' : 'text-white'
+                        }`}
+                        style={pending ? undefined : { backgroundColor: BRAND }}
+                      >
+                        {pending ? <Clock className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                      </span>
+                      <div className="min-w-0 flex-1 pb-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-bold text-slate-800">{item.title}</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                            {formatDate(item.date)}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-[13px] leading-6 text-slate-500">{item.detail}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </Card>
+          </div>
+        ) : (
+          <Card title="Case not found" subtitle="Check the case ID and try again." icon={ClipboardList}>
             <p className="rounded-lg bg-slate-50 px-4 py-4 text-sm text-slate-500">
               No citizen report matches that case ID in this account.
             </p>
-          )}
-        </Card>
+          </Card>
+        )}
       </div>
     </PageShell>
   );
