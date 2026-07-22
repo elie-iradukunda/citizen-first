@@ -25,10 +25,16 @@ async function resolveGmailSmtpHost() {
 
 if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
   const smtpHost = await resolveGmailSmtpHost();
+  const smtpPort = Number(process.env.GMAIL_SMTP_PORT || 587);
+  const smtpSecure =
+    process.env.GMAIL_SMTP_SECURE === undefined
+      ? smtpPort === 465
+      : process.env.GMAIL_SMTP_SECURE === 'true';
   const gmail = nodemailer.createTransport({
     host: smtpHost,
-    port: 465,
-    secure: true,
+    port: smtpPort,
+    secure: smtpSecure,
+    requireTLS: !smtpSecure,
     auth: {
       user: mailConfig.gmailUser,
       pass: mailConfig.gmailAppPassword,
