@@ -7,16 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchInstitutionProfile } from '../lib/institutionApi';
 
 function formatLevel(level = '') {
-  const workflowLabels = {
-    village: 'QR Access',
-    cell: 'Evidence Triage',
-    sector: 'RIB Intake',
-    district: 'Investigation Review',
-    province: 'Supervisory Review',
-    national: 'National Oversight',
-  };
-
-  return workflowLabels[level] ?? (level ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()) : 'Unknown');
+  return level ? level.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()) : 'Unknown';
 }
 
 function formatLocation(location = {}) {
@@ -126,7 +117,7 @@ function PublicInstitutionAccessPage() {
           support departments, contacts, schedules, and official reporting options.
         </p>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
           <article className="rounded-[1.8rem] border border-ink/10 bg-white p-6 shadow-soft">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate">View public information</p>
             <p className="mt-3 text-sm leading-7 text-slate">
@@ -168,6 +159,18 @@ function PublicInstitutionAccessPage() {
               </div>
             )}
           </article>
+
+          {institution.qrCodeDataUrl ? (
+            <article className="rounded-[1.8rem] border border-ink/10 bg-white p-6 text-center shadow-soft">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate">Scannable QR code</p>
+              <img
+                src={institution.qrCodeDataUrl}
+                alt={`QR code for ${institution.institutionName}`}
+                className="mx-auto mt-4 h-40 w-40 rounded-xl border border-ink/10 bg-white p-2"
+              />
+              <p className="mt-3 break-words text-xs font-semibold text-slate">/institutions/{institution.slug}</p>
+            </article>
+          ) : null}
         </div>
 
         {isAuthenticated && user?.role !== 'citizen' ? (

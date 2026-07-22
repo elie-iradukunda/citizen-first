@@ -857,25 +857,6 @@ export function CitizenScanServicesPage() {
             </div>
           }
         >
-          <label className="mb-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-brand-300">
-            <Search className="h-4 w-4 text-slate-400" />
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search service, staff, document, fee, or office"
-              className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-            />
-            {searchTerm ? (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="text-[11px] font-bold text-slate-400 hover:text-slate-600"
-              >
-                Clear
-              </button>
-            ) : null}
-          </label>
-
           <DataTable headers={['Service', 'Fee', 'Schedule', 'Responsible staff', 'Actions']} minWidth={860}>
             {servicesPaging.paged.map((service) => (
               <tr key={service.id} className="transition hover:bg-slate-50">

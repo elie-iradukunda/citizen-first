@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
-import { HIERARCHY_TEST_CREDENTIALS, seedHierarchyTestData } from './hierarchyTestSeed.js';
+import QRCode from 'qrcode';
+import { buildInstitutionAccessUrl } from '../config/publicBaseUrl.js';
+import { HIERARCHY_TEST_CREDENTIALS } from './hierarchyTestSeed.js';
 
 const NATIONAL_ROOT_ID = 'NATIONAL-PLATFORM';
 
@@ -610,7 +612,7 @@ const KACYIRU_SECTOR_OFFICE = {
   institutionId: 'GOV-KACYIRU-SECTOR',
   slug: 'kacyiru-sector-office',
   level: 'sector',
-  parentInstitutionId: 'DIS-9002',
+  parentInstitutionId: 'GOV-GASABO-DISTRICT',
   institutionName: 'Kacyiru Sector Office',
   institutionType: 'Sector government institution',
   officialEmail: 'kacyiru.sector@saccfp.rw',
@@ -762,6 +764,312 @@ const KACYIRU_STAFF_SERVICE_LINKS = [
   { employeeId: 'EMP-GOV-KACYIRU-S04', serviceName: 'Citizen complaint reception' },
 ];
 
+const DEMO_TESTING_INSTITUTIONS = [
+  {
+    institution: {
+      institutionId: 'GOV-GASABO-DISTRICT',
+      slug: 'gasabo-district-office',
+      level: 'district',
+      parentInstitutionId: NATIONAL_ROOT_ID,
+      institutionName: 'Gasabo District Office',
+      institutionType: 'District government service institution',
+      officialEmail: 'gasabo.district@saccfp.rw',
+      officialPhone: '+250788300211',
+      officeAddress: 'Gasabo District Office, Kigali',
+      location: {
+        country: 'Rwanda',
+        province: 'Kigali City',
+        district: 'Gasabo',
+        sector: '',
+        cell: '',
+        village: '',
+      },
+      childLevel: 'sector',
+      childUnitLabel: 'sectors',
+      expectedChildUnits: 2,
+      leaderNationalId: '1199000099997201',
+    },
+    services: [
+      {
+        name: 'Business permit guidance',
+        description: 'Citizen receives official guidance for business permit requirements and submission steps.',
+        feeType: 'paid',
+        officialFeeRwf: 1000,
+        accessNote: 'Only official receipted payment is allowed where the permit fee applies.',
+        schedule: 'Monday to Friday, 08:00 - 16:00',
+        documents: 'National ID, business activity description, application reference',
+      },
+      {
+        name: 'Construction permit information',
+        description: 'Citizen receives direction on construction permit procedure and responsible office.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'Information service is free before formal permit submission.',
+        schedule: 'Monday, Wednesday, Friday, 09:00 - 15:00',
+        documents: 'Land reference, project summary, owner identification',
+      },
+      {
+        name: 'District complaint escalation support',
+        description: 'Citizen can request district-level follow-up when a sector service is delayed or unclear.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'Complaint follow-up is free.',
+        schedule: 'Every working day, 08:00 - 16:00',
+        documents: 'Service reference, case explanation, evidence where available',
+      },
+    ],
+    departments: [
+      {
+        departmentId: 'DEP-GOV-GASABO-BUSINESS',
+        name: 'Business and Licensing',
+        description: 'Business permits, licensing guidance, and official fee information.',
+      },
+      {
+        departmentId: 'DEP-GOV-GASABO-INFRA',
+        name: 'Infrastructure and Permits',
+        description: 'Construction permit guidance and land-related technical support.',
+      },
+      {
+        departmentId: 'DEP-GOV-GASABO-CITIZEN',
+        name: 'Citizen Service Desk',
+        description: 'Complaint escalation and citizen follow-up support.',
+      },
+    ],
+    employees: [
+      {
+        employeeId: 'EMP-GOV-GASABO-L01',
+        fullName: 'Jean Paul Niyonkuru',
+        nationalId: '1199000099997201',
+        phone: '+250788300211',
+        email: 'jeanpaul.niyonkuru@saccfp.rw',
+        positionTitle: 'District Mayor',
+        positionKinyarwanda: "Umuyobozi w'Akarere",
+        reportsTo: 'Kigali City Governor Office',
+        description: 'Supervises district service delivery, staff accountability, and citizen complaint follow-up.',
+        isLeader: true,
+      },
+      {
+        employeeId: 'EMP-GOV-GASABO-S01',
+        fullName: 'Alice Uwimana',
+        nationalId: '1199000099997202',
+        phone: '+250788300212',
+        email: 'alice.uwimana@saccfp.rw',
+        positionTitle: 'Business Licensing Officer',
+        positionKinyarwanda: 'Umukozi ushinzwe ubucuruzi',
+        reportsTo: 'District Mayor',
+        description: 'Handles business permit guidance and official licensing information.',
+        isLeader: false,
+      },
+      {
+        employeeId: 'EMP-GOV-GASABO-S02',
+        fullName: 'Emmanuel Habimana',
+        nationalId: '1199000099997203',
+        phone: '+250788300213',
+        email: 'emmanuel.habimana@saccfp.rw',
+        positionTitle: 'Infrastructure Permit Officer',
+        positionKinyarwanda: "Umukozi ushinzwe ibyangombwa by'ubwubatsi",
+        reportsTo: 'District Mayor',
+        description: 'Explains construction permit procedure, documents, schedules, and official channels.',
+        isLeader: false,
+      },
+      {
+        employeeId: 'EMP-GOV-GASABO-S03',
+        fullName: 'Diane Ishimwe',
+        nationalId: '1199000099997204',
+        phone: '+250788300214',
+        email: 'diane.ishimwe@saccfp.rw',
+        positionTitle: 'Citizen Follow-up Officer',
+        positionKinyarwanda: 'Umukozi ushinzwe gukurikirana ibibazo byabaturage',
+        reportsTo: 'District Mayor',
+        description: 'Receives citizen follow-up requests and connects delayed cases to the correct office.',
+        isLeader: false,
+      },
+    ],
+    links: [
+      { employeeId: 'EMP-GOV-GASABO-S01', serviceName: 'Business permit guidance' },
+      { employeeId: 'EMP-GOV-GASABO-S02', serviceName: 'Construction permit information' },
+      { employeeId: 'EMP-GOV-GASABO-S03', serviceName: 'District complaint escalation support' },
+    ],
+  },
+  {
+    institution: {
+      institutionId: 'RIB-INTAKE',
+      slug: 'rib-anti-corruption-intake-office',
+      level: 'sector',
+      parentInstitutionId: 'GOV-GASABO-DISTRICT',
+      institutionName: 'RIB Anti-Corruption Intake Office',
+      institutionType: 'RIB citizen report intake office',
+      officialEmail: 'intake@rib.saccfp.rw',
+      officialPhone: '+250788997103',
+      officeAddress: 'RIB Anti-Corruption Intake Office, Kacyiru, Kigali',
+      location: RIB_CASE_STUDY_LOCATION,
+      childLevel: null,
+      childUnitLabel: null,
+      expectedChildUnits: null,
+      leaderNationalId: '1199000099998888',
+    },
+    services: [
+      {
+        name: 'QR corruption report intake',
+        description: 'Citizen submits a corruption report after scanning an institution QR code.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'Reporting corruption is free.',
+        schedule: 'Every working day, 08:00 - 17:00',
+        documents: 'Case explanation, institution or service name, evidence where available',
+      },
+      {
+        name: 'Evidence and voice-note support',
+        description: 'Citizen can attach screenshots, receipts, documents, images, or a voice note.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'Evidence attachment is free and used only for case review.',
+        schedule: 'Every working day, 08:00 - 17:00',
+        documents: 'Image, document, receipt, screenshot, or voice note',
+      },
+      {
+        name: 'Confidential citizen feedback',
+        description: 'Citizen can provide sensitive details safely for the RIB intake review.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'Confidential feedback is handled with controlled visibility.',
+        schedule: 'Every working day, 08:00 - 17:00',
+        documents: 'Case number or contact details if the citizen chooses verified reporting',
+      },
+    ],
+    departments: [
+      {
+        departmentId: 'DEP-RIB-INTAKE-REPORTS',
+        name: 'Report Intake',
+        description: 'Receives new QR-based corruption and poor-service reports.',
+      },
+      {
+        departmentId: 'DEP-RIB-INTAKE-EVIDENCE',
+        name: 'Evidence Review',
+        description: 'Checks attached evidence before a case moves to follow-up.',
+      },
+    ],
+    employees: [
+      {
+        employeeId: 'EMP-RIB-INTAKE-L01',
+        fullName: 'RIB Officer 1',
+        nationalId: '1199000099998888',
+        phone: '+250788997103',
+        email: DASHBOARD_RIB_OFFICER_ONE_EMAIL,
+        positionTitle: 'RIB Intake Officer',
+        positionKinyarwanda: 'Umukozi wa RIB ushinzwe kwakira ibirego',
+        reportsTo: 'RIB Escalation Review Office',
+        description: 'Receives new citizen reports, checks evidence, and responds within the first review window.',
+        isLeader: true,
+      },
+      {
+        employeeId: 'EMP-RIB-INTAKE-S01',
+        fullName: 'Grace Mukamana',
+        nationalId: '1199000099997301',
+        phone: '+250788997131',
+        email: 'grace.mukamana@rib.saccfp.rw',
+        positionTitle: 'Evidence Review Officer',
+        positionKinyarwanda: 'Umukozi ushinzwe gusuzuma ibimenyetso',
+        reportsTo: 'RIB Intake Officer',
+        description: 'Reviews uploaded images, receipts, documents, and voice notes for completeness.',
+        isLeader: false,
+      },
+    ],
+    links: [
+      { employeeId: 'EMP-RIB-INTAKE-L01', serviceName: 'QR corruption report intake' },
+      { employeeId: 'EMP-RIB-INTAKE-S01', serviceName: 'Evidence and voice-note support' },
+      { employeeId: 'EMP-RIB-INTAKE-L01', serviceName: 'Confidential citizen feedback' },
+    ],
+  },
+  {
+    institution: {
+      institutionId: 'RIB-ESCALATION',
+      slug: 'rib-escalation-review-office',
+      level: 'district',
+      parentInstitutionId: 'RIB-INTAKE',
+      institutionName: 'RIB Escalation Review Office',
+      institutionType: 'RIB escalation and final follow-up office',
+      officialEmail: 'escalation@rib.saccfp.rw',
+      officialPhone: '+250788997104',
+      officeAddress: 'RIB Escalation Review Office, Kigali',
+      location: {
+        country: 'Rwanda',
+        province: 'Kigali City',
+        district: 'Gasabo',
+        sector: '',
+        cell: '',
+        village: '',
+      },
+      childLevel: null,
+      childUnitLabel: null,
+      expectedChildUnits: null,
+      leaderNationalId: '1199000099998889',
+    },
+    services: [
+      {
+        name: 'Escalated case review',
+        description: 'Reviews reports that were not answered or were not resolved at the intake stage.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'Escalation review is free.',
+        schedule: 'Monday to Friday, 09:00 - 16:00',
+        documents: 'Case ID, citizen feedback, previous response, supporting evidence',
+      },
+      {
+        name: 'Final citizen follow-up',
+        description: 'Provides final follow-up for unresolved reports and accountability decisions.',
+        feeType: 'free',
+        officialFeeRwf: 0,
+        accessNote: 'No payment is required for final RIB follow-up.',
+        schedule: 'Monday to Friday, 09:00 - 16:00',
+        documents: 'Case ID and explanation of why the response was not satisfactory',
+      },
+    ],
+    departments: [
+      {
+        departmentId: 'DEP-RIB-ESCALATION-REVIEW',
+        name: 'Escalation Review',
+        description: 'Reviews overdue or unsatisfactory citizen complaint responses.',
+      },
+      {
+        departmentId: 'DEP-RIB-ESCALATION-FINAL',
+        name: 'Final Follow-up',
+        description: 'Handles final accountability follow-up and citizen response closure.',
+      },
+    ],
+    employees: [
+      {
+        employeeId: 'EMP-RIB-ESCALATION-L01',
+        fullName: 'RIB Officer 2',
+        nationalId: '1199000099998889',
+        phone: '+250788997104',
+        email: DASHBOARD_RIB_OFFICER_TWO_EMAIL,
+        positionTitle: 'RIB Escalation Officer',
+        positionKinyarwanda: 'Umukozi wa RIB ushinzwe kuzamura ibirego',
+        reportsTo: 'RIB National Oversight Admin',
+        description: 'Reviews escalated cases and provides final follow-up when the first response is not satisfactory.',
+        isLeader: true,
+      },
+      {
+        employeeId: 'EMP-RIB-ESCALATION-S01',
+        fullName: 'Olivier Nsengiyumva',
+        nationalId: '1199000099997401',
+        phone: '+250788997141',
+        email: 'olivier.nsengiyumva@rib.saccfp.rw',
+        positionTitle: 'Case Review Analyst',
+        positionKinyarwanda: 'Umusesenguzi wibirego',
+        reportsTo: 'RIB Escalation Officer',
+        description: 'Checks the case history, response timing, and supporting documents for escalated complaints.',
+        isLeader: false,
+      },
+    ],
+    links: [
+      { employeeId: 'EMP-RIB-ESCALATION-L01', serviceName: 'Escalated case review' },
+      { employeeId: 'EMP-RIB-ESCALATION-S01', serviceName: 'Final citizen follow-up' },
+    ],
+  },
+];
+
 function seedKacyiruSectorOfficeData() {
   const now = new Date().toISOString();
 
@@ -824,6 +1132,103 @@ function seedKacyiruSectorOfficeData() {
       createdAt: now,
     });
   }
+}
+
+function seedDemoTestingInstitutions() {
+  const now = new Date().toISOString();
+
+  for (const demo of DEMO_TESTING_INSTITUTIONS) {
+    const { institution, services, departments, employees, links } = demo;
+
+    if (!registeredInstitutions.some((entry) => entry.institutionId === institution.institutionId)) {
+      registeredInstitutions.push({
+        ...institution,
+        services,
+        employeeCount: employees.length,
+        registeredChildUnits: 0,
+        childInstitutionIds: [],
+        createdByInviteId: `INV-${institution.institutionId}`,
+        createdAt: now,
+        updatedAt: now,
+        status: 'active',
+        qrCodeDataUrl: null,
+      });
+    }
+
+    for (const department of departments) {
+      if (institutionDepartments.some((entry) => entry.departmentId === department.departmentId)) {
+        continue;
+      }
+
+      institutionDepartments.push({
+        ...department,
+        institutionId: institution.institutionId,
+        createdAt: now,
+      });
+    }
+
+    for (const employee of employees) {
+      if (institutionEmployees.some((entry) => entry.employeeId === employee.employeeId)) {
+        continue;
+      }
+
+      institutionEmployees.push({
+        ...employee,
+        institutionId: institution.institutionId,
+        status: 'Active',
+        createdAt: now,
+      });
+    }
+
+    for (const [index, link] of links.entries()) {
+      const exists = institutionStaffServiceLinks.some(
+        (entry) =>
+          entry.institutionId === institution.institutionId &&
+          entry.employeeId === link.employeeId &&
+          entry.serviceName === link.serviceName,
+      );
+
+      if (exists) {
+        continue;
+      }
+
+      institutionStaffServiceLinks.push({
+        linkId: `LNK-${institution.institutionId}-${String(index + 1).padStart(3, '0')}`,
+        institutionId: institution.institutionId,
+        employeeId: link.employeeId,
+        serviceName: link.serviceName,
+        createdAt: now,
+      });
+    }
+  }
+
+  for (const institution of registeredInstitutions) {
+    const children = registeredInstitutions
+      .filter((entry) => entry.parentInstitutionId === institution.institutionId)
+      .map((entry) => entry.institutionId);
+
+    institution.childInstitutionIds = children;
+    institution.registeredChildUnits = children.length;
+    institution.employeeCount = institutionEmployees.filter(
+      (entry) => entry.institutionId === institution.institutionId,
+    ).length;
+    institution.updatedAt = now;
+  }
+}
+
+async function ensureInstitutionQrCodes() {
+  await Promise.all(
+    registeredInstitutions.map(async (institution) => {
+      institution.qrCodeDataUrl = await QRCode.toDataURL(buildInstitutionAccessUrl(institution.slug), {
+        margin: 2,
+        width: 280,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+    }),
+  );
 }
 
 function seedRibCaseStudyData() {
@@ -1026,13 +1431,6 @@ export const staffTemplateExamples = [
 
 export { HIERARCHY_TEST_CREDENTIALS };
 
-seedHierarchyTestData({
-  systemUsers,
-  registeredInstitutions,
-  institutionEmployees,
-  institutionDepartments,
-  createPasswordCredentials,
-});
-
 seedKacyiruSectorOfficeData();
-seedRibCaseStudyData();
+seedDemoTestingInstitutions();
+await ensureInstitutionQrCodes();

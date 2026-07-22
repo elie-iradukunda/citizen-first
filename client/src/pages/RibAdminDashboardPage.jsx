@@ -320,14 +320,21 @@ function RibAdminDashboardPage() {
                 <td className="px-3 py-3 text-slate-600">{institution.services?.length ?? 0}</td>
                 <td className="px-3 py-3 text-slate-600">{institution.employeeCount ?? 0}</td>
                 <td className="px-3 py-3">
-                  <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-                      institution.qrCodeDataUrl ? 'text-emerald-600' : 'text-slate-400'
-                    }`}
-                  >
-                    <QrCode className="h-3.5 w-3.5" />
-                    {institution.qrCodeDataUrl ? 'Active' : 'On demand'}
-                  </span>
+                  {institution.qrCodeDataUrl ? (
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={institution.qrCodeDataUrl}
+                        alt={`QR code for ${institution.institutionName}`}
+                        className="h-14 w-14 rounded-md border border-slate-200 bg-white p-1"
+                      />
+                      <span className="text-[11px] font-bold text-emerald-700">Scan</span>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                      <QrCode className="h-3.5 w-3.5" />
+                      On demand
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-3 last:pr-0">
                   <div className="flex gap-2">

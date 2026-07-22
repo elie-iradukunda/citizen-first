@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { complaints, escalations, institutions, officers } from '../data/mockData.js';
 import {
   RWANDA_ADMINISTRATIVE_STRUCTURE,
@@ -649,10 +650,6 @@ const citizenResponseSchema = z.object({
 const citizenDecisionSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
-
-function getClientBaseUrl() {
-  return process.env.CLIENT_URL ?? 'http://localhost:5173';
-}
 
 function buildCitizenDashboardReportUrl(slug) {
   const redirectPath = encodeURIComponent(`/dashboard/citizen/submit?institution=${slug}&source=qr`);

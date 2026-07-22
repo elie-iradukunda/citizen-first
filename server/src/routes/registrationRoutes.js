@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import QRCode from 'qrcode';
 import { z } from 'zod';
+import { buildInstitutionAccessUrl, getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { getAuthUserFromRequest } from '../middleware/authMiddleware.js';
 import {
   GOVERNMENT_LEVELS,
@@ -761,14 +762,6 @@ function generateId(prefix, count) {
   return `${prefix}-${String(count + 1).padStart(4, '0')}`;
 }
 
-function getClientBaseUrl() {
-  return process.env.CLIENT_URL ?? 'http://localhost:5173';
-}
-
-function buildInstitutionAccessUrl(slug) {
-  return `${getClientBaseUrl()}/institutions/${slug}`;
-}
-
 function getAccessKeyForNewLeader(level) {
   return `CF-${LEVEL_PREFIX[level]}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 }
@@ -1430,10 +1423,11 @@ router.post('/invites', async (request, response, next) => {
         : actor.institutionId;
     const registrationLink = `${getClientBaseUrl()}/register/institution?inviteToken=${inviteToken}`;
     const qrCodeDataUrl = await QRCode.toDataURL(registrationLink, {
-      margin: 1,
+      margin: 2,
+      width: 280,
       color: {
-        dark: '#1d3567',
-        light: '#f3f6fc',
+        dark: '#000000',
+        light: '#ffffff',
       },
     });
 
@@ -1612,10 +1606,11 @@ router.post('/institutions/complete', async (request, response, next) => {
     };
 
     const qrCodeDataUrl = await QRCode.toDataURL(buildInstitutionAccessUrl(institutionSlug), {
-      margin: 1,
+      margin: 2,
+      width: 280,
       color: {
-        dark: '#1d3567',
-        light: '#f3f6fc',
+        dark: '#000000',
+        light: '#ffffff',
       },
     });
 

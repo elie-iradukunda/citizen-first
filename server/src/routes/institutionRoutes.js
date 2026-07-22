@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import QRCode from 'qrcode';
-import { institutions } from '../data/mockData.js';
+import { buildInstitutionAccessUrl } from '../config/publicBaseUrl.js';
 import {
   institutionDepartments,
   institutionEmployees,
@@ -9,14 +9,6 @@ import {
 } from '../data/registrationData.js';
 
 const router = Router();
-
-function getClientBaseUrl() {
-  return process.env.CLIENT_URL ?? 'http://localhost:5173';
-}
-
-function buildInstitutionAccessUrl(slug) {
-  return `${getClientBaseUrl()}/institutions/${slug}`;
-}
 
 function buildInstitutionInfoUrl(slug) {
   return `${buildInstitutionAccessUrl(slug)}#info`;
@@ -181,10 +173,7 @@ function normalizeRegisteredInstitution(item) {
 }
 
 function getAllInstitutions() {
-  return [
-    ...institutions.map(normalizeLegacyInstitution),
-    ...registeredInstitutions.map(normalizeRegisteredInstitution),
-  ];
+  return registeredInstitutions.map(normalizeRegisteredInstitution);
 }
 
 router.get('/', (_request, response) => {
@@ -221,10 +210,11 @@ router.get(['/:slug/qr', '/:slug/access-qr'], async (request, response, next) =>
 
     const accessUrl = institution.accessUrl;
     const accessQrCodeDataUrl = await QRCode.toDataURL(accessUrl, {
-      margin: 1,
+      margin: 2,
+      width: 280,
       color: {
-        dark: '#1d3567',
-        light: '#f3f6fc',
+        dark: '#000000',
+        light: '#ffffff',
       },
     });
 
