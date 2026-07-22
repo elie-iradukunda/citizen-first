@@ -3,7 +3,10 @@ import { useLocation } from 'react-router-dom';
 import QRCode from 'qrcode';
 import {
   ArrowPathIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   LinkIcon,
+  MagnifyingGlassIcon,
   PencilSquareIcon,
   PlusIcon,
   QrCodeIcon,
@@ -17,7 +20,6 @@ import {
   createInstitutionService,
   createInstitutionStaffMember,
   createStaffServiceLink,
-  createTestingUser,
   deleteInstitutionDepartment,
   deleteInstitutionService,
   deleteInstitutionStaffMember,
@@ -56,20 +58,6 @@ const emptyStaffForm = {
   createPlatformAccount: false,
   password: '',
 };
-
-const emptyTestingUserForm = {
-  fullName: '',
-  email: '',
-  password: '',
-  phone: '',
-  role: 'rib_officer_1',
-};
-
-const testingUserRoleOptions = [
-  { value: 'rib_officer_1', label: 'RIB Officer 1 - intake' },
-  { value: 'rib_officer_2', label: 'RIB Officer 2 - escalation' },
-  { value: 'institution_admin', label: 'Institution Leader / Admin' },
-];
 
 function formatLocation(location = {}) {
   return [location.village, location.cell, location.sector, location.district, location.province, location.country]
@@ -151,6 +139,24 @@ function TextInput({ label, name, value, onChange, placeholder = '', type = 'tex
         className="mt-2 h-11 w-full rounded-lg border border-ink/10 bg-mist px-3 text-sm outline-none focus:border-tide"
         {...props}
       />
+    </label>
+  );
+}
+
+function TextArea({ label, name, value, onChange, placeholder = '', rows = 3, hint = '', ...props }) {
+  return (
+    <label className="block">
+      <span className="text-sm font-bold text-ink">{label}</span>
+      <textarea
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows}
+        className="mt-2 w-full resize-y rounded-lg border border-ink/10 bg-mist px-3 py-2.5 text-sm leading-6 outline-none focus:border-tide"
+        {...props}
+      />
+      {hint ? <span className="mt-1 block text-xs text-slate">{hint}</span> : null}
     </label>
   );
 }
@@ -263,13 +269,11 @@ function InstitutionAdminDashboardPage() {
   const [linkForm, setLinkForm] = useState({ employeeId: '', serviceName: '' });
   const [panelFeedback, setPanelFeedback] = useState({});
 
-  const [createdStaffAccounts, setCreatedStaffAccounts] = useState([]);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffPage, setStaffPage] = useState(1);
+  const STAFF_PAGE_SIZE = 6;
 
-  const [testingUserForm, setTestingUserForm] = useState(emptyTestingUserForm);
-  const [createdTestingUsers, setCreatedTestingUsers] = useState([]);
-  const [testingUserError, setTestingUserError] = useState('');
-  const [testingUserSuccess, setTestingUserSuccess] = useState('');
-  const [isCreatingTestingUser, setIsCreatingTestingUser] = useState(false);
+  const [createdStaffAccounts, setCreatedStaffAccounts] = useState([]);
 
   const [qrGeneratedAt, setQrGeneratedAt] = useState(() => new Date().toISOString());
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
@@ -371,6 +375,40 @@ function InstitutionAdminDashboardPage() {
   const departments = institution?.departments ?? [];
   const employees = institution?.employees ?? [];
   const staffServiceLinks = institution?.staffServiceLinks ?? [];
+
+  // Staff search + pagination (institution admin manages potentially many staff).
+  const filteredStaff = useMemo(() => {
+    const query = staffSearch.trim().toLowerCase();
+    if (!query) {
+      return employees;
+    }
+    return employees.filter((member) =>
+      [member.fullName, member.positionTitle, member.positionKinyarwanda, member.phone, member.email, member.reportsTo]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(query)),
+    );
+  }, [employees, staffSearch]);
+
+  const staffTotalPages = Math.max(1, Math.ceil(filteredStaff.length / STAFF_PAGE_SIZE));
+  const currentStaffPage = Math.min(staffPage, staffTotalPages);
+  const pagedStaff = filteredStaff.slice(
+    (currentStaffPage - 1) * STAFF_PAGE_SIZE,
+    currentStaffPage * STAFF_PAGE_SIZE,
+  );
+
+  // Reset to the first page whenever the search or the underlying list changes.
+  useEffect(() => {
+    setStaffPage(1);
+  }, [staffSearch, employees.length]);
+
+  // Group service links by service so the admin sees, per service, who is
+  // responsible (or that no one is assigned yet).
+  const linksByService = useMemo(() => {
+    return services.map((service) => ({
+      service,
+      links: staffServiceLinks.filter((link) => link.serviceName === service.name),
+    }));
+  }, [services, staffServiceLinks]);
 
   const openModal = (type, data = null, form = null) => {
     setModal({ type, data });
@@ -505,31 +543,6 @@ function InstitutionAdminDashboardPage() {
       setFeedback('linking', '', 'Staff-service link removed successfully.');
     } catch (error) {
       setFeedback('linking', error.message);
-    }
-  };
-
-  const addTestingUser = async (event) => {
-    event.preventDefault();
-    setTestingUserError('');
-    setTestingUserSuccess('');
-    setIsCreatingTestingUser(true);
-
-    try {
-      const response = await createTestingUser({
-        fullName: testingUserForm.fullName.trim(),
-        email: testingUserForm.email.trim().toLowerCase(),
-        password: testingUserForm.password,
-        phone: testingUserForm.phone.trim(),
-        role: testingUserForm.role,
-      });
-
-      setCreatedTestingUsers((current) => [response.item, ...current]);
-      setTestingUserSuccess(`${response.item.fullName} can now login as ${response.item.role}.`);
-      setTestingUserForm(emptyTestingUserForm);
-    } catch (error) {
-      setTestingUserError(error.message);
-    } finally {
-      setIsCreatingTestingUser(false);
     }
   };
 
@@ -681,27 +694,31 @@ function InstitutionAdminDashboardPage() {
               onChange={(event) => setServiceForm((c) => ({ ...c, schedule: event.target.value }))}
               placeholder="Monday to Friday, 08:00 - 15:00"
             />
-            <TextInput
+            <TextArea
               label="Required documents"
               name="documents"
               value={serviceForm.documents}
               onChange={(event) => setServiceForm((c) => ({ ...c, documents: event.target.value }))}
-              placeholder="National ID, application reference"
+              placeholder="National ID, application reference (one per line)"
+              rows={3}
             />
-            <TextInput
+            <TextArea
               label="Payment / access note"
               name="accessNote"
               value={serviceForm.accessNote}
               onChange={(event) => setServiceForm((c) => ({ ...c, accessNote: event.target.value }))}
               placeholder="Official receipted payment only"
+              rows={3}
             />
             <div className="lg:col-span-3">
-              <TextInput
+              <TextArea
                 label="Short description"
                 name="description"
                 value={serviceForm.description}
                 onChange={(event) => setServiceForm((c) => ({ ...c, description: event.target.value }))}
                 placeholder="What the citizen receives from this service"
+                rows={3}
+                hint="Shown to citizens on the public QR page."
               />
             </div>
             <div className="lg:col-span-3">
@@ -754,11 +771,13 @@ function InstitutionAdminDashboardPage() {
               required
               minLength={2}
             />
-            <TextInput
+            <TextArea
               label="Focus / description"
               name="description"
               value={departmentForm.description}
               onChange={(event) => setDepartmentForm((c) => ({ ...c, description: event.target.value }))}
+              placeholder="What this department is responsible for"
+              rows={3}
             />
             <div className="flex items-end">
               <ActionButton type="submit">
@@ -798,7 +817,7 @@ function InstitutionAdminDashboardPage() {
         <Panel
           id="staff"
           title="Register staff"
-          subtitle="Add employees, keep their records updated, and optionally create platform accounts for them."
+          subtitle="You (the institution admin) add each staff member so citizens can see who delivers each service. Staff do not need to log in — a platform account is optional."
           className="mt-6"
         >
           <form className="mt-6 grid gap-4 lg:grid-cols-3" onSubmit={addStaff}>
@@ -854,12 +873,16 @@ function InstitutionAdminDashboardPage() {
               onChange={(event) => setStaffForm((c) => ({ ...c, email: event.target.value }))}
               required={staffForm.createPlatformAccount}
             />
-            <TextInput
-              label="Duties / description"
-              name="description"
-              value={staffForm.description}
-              onChange={(event) => setStaffForm((c) => ({ ...c, description: event.target.value }))}
-            />
+            <div className="lg:col-span-2">
+              <TextArea
+                label="Duties / description"
+                name="description"
+                value={staffForm.description}
+                onChange={(event) => setStaffForm((c) => ({ ...c, description: event.target.value }))}
+                placeholder="What this staff member does (shown to citizens)"
+                rows={3}
+              />
+            </div>
             <div className="flex flex-col justify-end gap-3">
               <label className="flex items-center gap-2 text-sm font-bold text-ink">
                 <input
@@ -906,28 +929,101 @@ function InstitutionAdminDashboardPage() {
             </div>
           ) : null}
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-4">
-            {employees.map((member) => (
-              <article key={member.employeeId} className="rounded-[1rem] border border-ink/10 bg-mist p-5">
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-6">
+            <div>
+              <p className="text-sm font-black text-ink">Registered staff</p>
+              <p className="text-xs text-slate">
+                {filteredStaff.length} {filteredStaff.length === 1 ? 'person' : 'people'}
+                {staffSearch.trim() ? ` matching "${staffSearch.trim()}"` : ''}
+              </p>
+            </div>
+            <label className="relative w-full max-w-xs">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate" />
+              <input
+                value={staffSearch}
+                onChange={(event) => setStaffSearch(event.target.value)}
+                placeholder="Search name, position, phone..."
+                className="h-11 w-full rounded-lg border border-ink/10 bg-mist pl-9 pr-3 text-sm outline-none focus:border-tide"
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            {pagedStaff.map((member) => (
+              <article key={member.employeeId} className="flex flex-col rounded-[1rem] border border-ink/10 bg-mist p-5">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-lg font-black text-ink">{member.fullName}</p>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ink text-sm font-black text-white">
+                      {(member.fullName || '?').split(' ').map((part) => part[0] || '').join('').slice(0, 2).toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="text-base font-black leading-tight text-ink">{member.fullName}</p>
+                      <p className="text-xs text-slate">{member.positionTitle}</p>
+                    </div>
+                  </div>
                   {member.isLeader ? (
                     <span className="rounded-full bg-gold/20 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-ink">
                       Leader
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-sm text-slate">{member.positionTitle}</p>
-                <p className="mt-3 text-sm text-slate">{member.phone}</p>
-                <p className="mt-1 text-sm text-slate">Status: {member.status}</p>
-                <CardActions
-                  onView={() => openModal('view-staff', member)}
-                  onEdit={() => openModal('edit-staff', member, staffToForm(member))}
-                  onDelete={member.isLeader ? null : () => openModal('delete-staff', member)}
-                />
+                <dl className="mt-4 space-y-1.5 text-sm text-slate">
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate/70">Phone</dt>
+                    <dd className="font-semibold text-ink">{member.phone || '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate/70">Status</dt>
+                    <dd className="font-semibold text-ink">{member.status}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate/70">Login</dt>
+                    <dd className="font-semibold text-ink">{member.hasPlatformAccount ? 'Yes' : 'No'}</dd>
+                  </div>
+                </dl>
+                <div className="mt-auto">
+                  <CardActions
+                    onView={() => openModal('view-staff', member)}
+                    onEdit={() => openModal('edit-staff', member, staffToForm(member))}
+                    onDelete={member.isLeader ? null : () => openModal('delete-staff', member)}
+                  />
+                </div>
               </article>
             ))}
+            {filteredStaff.length === 0 ? (
+              <p className="rounded-[1rem] border border-ink/10 bg-mist p-5 text-sm text-slate xl:col-span-3">
+                {staffSearch.trim()
+                  ? 'No staff match your search.'
+                  : 'No staff registered yet. Add employees so citizens can see who delivers each service.'}
+              </p>
+            ) : null}
           </div>
+
+          {staffTotalPages > 1 ? (
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setStaffPage((page) => Math.max(1, page - 1))}
+                disabled={currentStaffPage <= 1}
+                className="inline-flex items-center gap-1 rounded-full border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeftIcon className="h-4 w-4" />
+                Previous
+              </button>
+              <span className="text-xs font-bold text-slate">
+                Page {currentStaffPage} of {staffTotalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setStaffPage((page) => Math.min(staffTotalPages, page + 1))}
+                disabled={currentStaffPage >= staffTotalPages}
+                className="inline-flex items-center gap-1 rounded-full border border-ink/15 bg-white px-3 py-1.5 text-xs font-bold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+                <ChevronRightIcon className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
         </Panel>
 
         <Panel
@@ -964,36 +1060,65 @@ function InstitutionAdminDashboardPage() {
             <div className="flex items-end">
               <ActionButton type="submit">
                 <LinkIcon className="h-5 w-5" />
-                Link
+                Assign
               </ActionButton>
             </div>
           </form>
 
           <FeedbackBanner {...(panelFeedback.linking ?? {})} />
 
-          <div className="mt-6 grid gap-4 xl:grid-cols-2">
-            {staffServiceLinks.map((link) => (
-              <article key={link.linkId} className="rounded-[1rem] border border-ink/10 bg-mist p-5">
-                <p className="text-lg font-black text-ink">{link.serviceName}</p>
-                <p className="mt-2 text-sm text-slate">
-                  Responsible staff: {link.employeeName}
-                  {link.positionTitle ? ` (${link.positionTitle})` : ''}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-ink/10 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => removeStaffServiceLink(link.linkId)}
-                    className="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600"
+          <div className="mt-8">
+            <p className="text-sm font-black text-ink">Responsibility by service</p>
+            <p className="text-xs text-slate">
+              Every service should have at least one responsible staff member. Citizens see this after scanning the QR.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            {linksByService.map(({ service, links }) => (
+              <article key={service.name} className="rounded-[1rem] border border-ink/10 bg-mist p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-base font-black text-ink">{service.name}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                      links.length
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
                   >
-                    <TrashIcon className="h-3.5 w-3.5" />
-                    Unlink
-                  </button>
+                    {links.length ? `${links.length} assigned` : 'Unassigned'}
+                  </span>
                 </div>
+                {links.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {links.map((link) => (
+                      <span
+                        key={link.linkId}
+                        className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1 pl-3 pr-1.5 text-xs font-semibold text-ink"
+                      >
+                        {link.employeeName}
+                        {link.positionTitle ? (
+                          <span className="text-slate/70">· {link.positionTitle}</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => removeStaffServiceLink(link.linkId)}
+                          title={`Unlink ${link.employeeName}`}
+                          className="grid h-5 w-5 place-items-center rounded-full text-red-500 transition hover:bg-red-50"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-slate">No staff assigned to this service yet.</p>
+                )}
               </article>
             ))}
-            {staffServiceLinks.length === 0 ? (
-              <p className="rounded-[1rem] border border-ink/10 bg-mist p-5 text-sm text-slate">
-                No staff-service links yet. Link each service to the staff member who handles it.
+            {services.length === 0 ? (
+              <p className="rounded-[1rem] border border-ink/10 bg-mist p-5 text-sm text-slate xl:col-span-2">
+                Register a service first, then assign the staff member who handles it.
               </p>
             ) : null}
           </div>
@@ -1055,82 +1180,6 @@ function InstitutionAdminDashboardPage() {
           </div>
         </Panel>
 
-        <Panel
-          id="testing-users"
-          title="Create testing users"
-          subtitle="Citizen accounts are created only from the citizen registration page. Use this admin area to create presentation accounts for RIB officers and institution leaders."
-          className="mt-6"
-        >
-          <form className="mt-6 grid gap-4 lg:grid-cols-5" onSubmit={addTestingUser}>
-            <TextInput
-              label="Full name"
-              name="fullName"
-              value={testingUserForm.fullName}
-              onChange={(event) => setTestingUserForm((c) => ({ ...c, fullName: event.target.value }))}
-              required
-            />
-            <TextInput
-              label="Email"
-              name="email"
-              value={testingUserForm.email}
-              onChange={(event) => setTestingUserForm((c) => ({ ...c, email: event.target.value }))}
-              type="email"
-              required
-            />
-            <TextInput
-              label="Password"
-              name="password"
-              value={testingUserForm.password}
-              onChange={(event) => setTestingUserForm((c) => ({ ...c, password: event.target.value }))}
-              type="password"
-              minLength={8}
-              required
-            />
-            <SelectInput
-              label="Role"
-              name="role"
-              value={testingUserForm.role}
-              onChange={(event) => setTestingUserForm((c) => ({ ...c, role: event.target.value }))}
-              required
-            >
-              {testingUserRoleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </SelectInput>
-            <TextInput
-              label="Phone optional"
-              name="phone"
-              value={testingUserForm.phone}
-              onChange={(event) => setTestingUserForm((c) => ({ ...c, phone: event.target.value }))}
-              placeholder="+250788123456"
-            />
-
-            <div className="lg:col-span-5">
-              <ActionButton type="submit" disabled={isCreatingTestingUser}>
-                <UserPlusIcon className="h-5 w-5" />
-                {isCreatingTestingUser ? 'Creating User...' : 'Create User'}
-              </ActionButton>
-            </div>
-          </form>
-
-          <FeedbackBanner error={testingUserError} success={testingUserSuccess} />
-
-          {createdTestingUsers.length > 0 ? (
-            <div className="mt-6 grid gap-4 xl:grid-cols-3">
-              {createdTestingUsers.map((account) => (
-                <article key={account.userId} className="rounded-[1rem] border border-ink/10 bg-mist p-5 text-sm text-slate">
-                  <p className="text-lg font-black text-ink">{account.fullName}</p>
-                  <p className="mt-2 font-bold text-ink">{account.role}</p>
-                  <p className="mt-3 break-all">Email: {account.loginEmail}</p>
-                  <p className="mt-1 break-all">Access key: {account.accessKey}</p>
-                  <p className="mt-1">Status: {account.status}</p>
-                </article>
-              ))}
-            </div>
-          ) : null}
-        </Panel>
       </section>
 
       {/* ---- View details modals ---- */}
@@ -1289,10 +1338,10 @@ function InstitutionAdminDashboardPage() {
               disabled={modalForm.feeType !== 'paid'}
             />
             <TextInput label="Schedule" name="schedule" value={modalForm.schedule} onChange={updateModalForm} />
-            <TextInput label="Required documents" name="documents" value={modalForm.documents} onChange={updateModalForm} />
-            <TextInput label="Payment / access note" name="accessNote" value={modalForm.accessNote} onChange={updateModalForm} />
+            <TextArea label="Required documents" name="documents" value={modalForm.documents} onChange={updateModalForm} rows={2} />
+            <TextArea label="Payment / access note" name="accessNote" value={modalForm.accessNote} onChange={updateModalForm} rows={2} />
             <div className="md:col-span-2">
-              <TextInput label="Description" name="description" value={modalForm.description} onChange={updateModalForm} />
+              <TextArea label="Description" name="description" value={modalForm.description} onChange={updateModalForm} rows={3} />
             </div>
             {modalError ? <p className="text-sm font-semibold text-red-600 md:col-span-2">{modalError}</p> : null}
           </div>
@@ -1332,7 +1381,7 @@ function InstitutionAdminDashboardPage() {
         {modalForm ? (
           <div className="grid gap-4">
             <TextInput label="Department name" name="name" value={modalForm.name} onChange={updateModalForm} />
-            <TextInput label="Description" name="description" value={modalForm.description} onChange={updateModalForm} />
+            <TextArea label="Description" name="description" value={modalForm.description} onChange={updateModalForm} rows={3} />
             {modalError ? <p className="text-sm font-semibold text-red-600">{modalError}</p> : null}
           </div>
         ) : null}
@@ -1386,7 +1435,9 @@ function InstitutionAdminDashboardPage() {
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
             </SelectInput>
-            <TextInput label="Duties / description" name="description" value={modalForm.description} onChange={updateModalForm} />
+            <div className="md:col-span-2">
+              <TextArea label="Duties / description" name="description" value={modalForm.description} onChange={updateModalForm} rows={3} />
+            </div>
             {modalError ? <p className="text-sm font-semibold text-red-600 md:col-span-2">{modalError}</p> : null}
           </div>
         ) : null}

@@ -10,7 +10,7 @@ import { Route, Routes } from 'react-router-dom';
 import GovernanceStructurePage from './pages/GovernanceStructurePage';
 import HomePage from './pages/HomePage';
 import InstitutionInvitePage from './pages/InstitutionInvitePage';
-import InstitutionRegistrationPage from './pages/InstitutionRegistrationPage';
+import InstitutionActivationPage from './pages/InstitutionActivationPage';
 import LoginPage from './pages/LoginPage';
 import PublicInstitutionAccessPage from './pages/PublicInstitutionAccessPage';
 import PublicServicesPage from './pages/PublicServicesPage';
@@ -19,7 +19,7 @@ import TrackPage from './pages/TrackPage';
 import {
   ADMIN_DASHBOARD_ROLES,
   CITIZEN_DASHBOARD_ROLES,
-  INSTITUTION_DASHBOARD_ROLES,
+  INSTITUTION_SETTINGS_ROLES,
   INVITE_ROLES,
   OFFICER_DASHBOARD_ROLES,
 } from './lib/authRouting';
@@ -74,7 +74,7 @@ function App() {
           <Route path="/emergency" element={<EmergencyPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/register/citizen" element={<CitizenRegistrationPage />} />
-          <Route path="/register/institution" element={<InstitutionRegistrationPage />} />
+          <Route path="/register/institution" element={<InstitutionActivationPage />} />
           <Route path="/institutions/:slug" element={<PublicInstitutionAccessPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/track" element={<TrackPage />} />
@@ -96,7 +96,7 @@ function App() {
               <Route path="/dashboard/citizen/track" element={<CitizenTrackCasePage />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={[...INSTITUTION_DASHBOARD_ROLES]} />}>
+            <Route element={<ProtectedRoute allowedRoles={[...INSTITUTION_SETTINGS_ROLES]} />}>
               <Route path="/dashboard/institution" element={<InstitutionAdminDashboardPage />} />
             </Route>
 

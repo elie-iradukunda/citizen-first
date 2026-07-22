@@ -84,6 +84,16 @@ export function AuthProvider({ children }) {
     return payload.user;
   }, []);
 
+  // Apply a session obtained outside the login form (e.g. the activation flow
+  // returns a token + user on success, so the leader is signed in immediately).
+  const applySession = useCallback(({ token: nextToken, user: nextUser }) => {
+    setToken(nextToken);
+    setUser(nextUser);
+    localStorage.setItem(AUTH_TOKEN_KEY, nextToken);
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
+    return nextUser;
+  }, []);
+
   const logout = useCallback(async () => {
     if (token) {
       try {
@@ -105,9 +115,10 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token && user),
       isChecking,
       login,
+      applySession,
       logout,
     }),
-    [token, user, isChecking, login, logout],
+    [token, user, isChecking, login, applySession, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

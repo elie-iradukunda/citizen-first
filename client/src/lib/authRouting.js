@@ -15,6 +15,18 @@ export const OFFICER_DASHBOARD_ROLES = new Set([
   'village_leader',
 ]);
 
+// Roles that own an institution record and may manage its Settings (services,
+// departments, staff, and staff-service links). Includes the institution admin
+// plus every governance leader created through the activation/registration flow.
+export const INSTITUTION_SETTINGS_ROLES = new Set([
+  'institution_admin',
+  'province_leader',
+  'district_leader',
+  'sector_leader',
+  'cell_leader',
+  'village_leader',
+]);
+
 export const ADMIN_DASHBOARD_ROLES = new Set(['national_admin', 'oversight_admin']);
 
 // RIB (national admin) registers institutions and creates the invites.
@@ -30,6 +42,10 @@ export function isOfficerDashboardRole(role) {
 
 export function isInstitutionDashboardRole(role) {
   return INSTITUTION_DASHBOARD_ROLES.has(role);
+}
+
+export function canManageInstitutionSettings(role) {
+  return INSTITUTION_SETTINGS_ROLES.has(role);
 }
 
 export function isAdminDashboardRole(role) {

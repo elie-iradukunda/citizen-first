@@ -3,7 +3,9 @@ import nodemailer from 'nodemailer';
 import { mailConfig } from '../config/mail.js';
 import { templates } from './emailTemplates.js';
 
-let transport = null;
+let transport = null; // async ({to, subject, html}) => { id }
+let verifyTransport = null; // async () => void  (throws on failure)
+let activeProvider = 'none';
 
 async function resolveGmailSmtpHost() {
   if (process.env.GMAIL_SMTP_HOST) {
@@ -23,7 +25,53 @@ async function resolveGmailSmtpHost() {
   }
 }
 
-if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
+// --- Resend (HTTP API over port 443) -----------------------------------------
+// Works on hosts that block outbound SMTP, such as Railway Trial/Hobby plans.
+function initResend() {
+  activeProvider = 'resend';
+
+  const send = async ({ to, subject, html }) => {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${mailConfig.resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: mailConfig.from,
+        to: [to],
+        subject,
+        html,
+        ...(mailConfig.replyTo ? { reply_to: mailConfig.replyTo } : {}),
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = payload?.message || payload?.error || `HTTP ${response.status}`;
+      throw new Error(`Resend API rejected the message: ${detail}`);
+    }
+    return { id: payload?.id ?? 'resend' };
+  };
+
+  transport = send;
+  verifyTransport = async () => {
+    // Resend has no verify endpoint; a valid key returns 200 on /domains.
+    const response = await fetch('https://api.resend.com/domains', {
+      headers: { Authorization: `Bearer ${mailConfig.resendApiKey}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Resend API key check failed: HTTP ${response.status}`);
+    }
+  };
+
+  console.info('Email provider: Resend HTTP API');
+}
+
+// --- Gmail (SMTP) ------------------------------------------------------------
+async function initGmail() {
+  activeProvider = 'gmail';
+
   const smtpHost = await resolveGmailSmtpHost();
   const smtpPort = Number(process.env.GMAIL_SMTP_PORT || 587);
   const smtpSecure =
@@ -59,10 +107,19 @@ if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
     return { id: info.messageId };
   };
 
-  console.info(`Email provider: Gmail SMTP as ${mailConfig.gmailUser}`);
+  verifyTransport = () => gmail.verify();
+
+  console.info(`Email provider: Gmail SMTP as ${mailConfig.gmailUser} (${smtpHost}:${smtpPort})`);
+}
+
+if (mailConfig.provider === 'resend' && mailConfig.isLive) {
+  initResend();
+} else if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
+  await initGmail();
 } else {
   console.warn(
-    'No live email provider is configured. Set MAIL_PROVIDER=gmail, GMAIL_USER, and GMAIL_APP_PASSWORD to send real SACCFP email.',
+    'No live email provider is configured. Set MAIL_PROVIDER + credentials ' +
+      '(RESEND_API_KEY for Resend, or GMAIL_USER + GMAIL_APP_PASSWORD for Gmail) to send real SACCFP email.',
   );
 }
 
@@ -104,6 +161,38 @@ export function sendEmailInBackground(to, message) {
 
 export function isEmailLive() {
   return mailConfig.isLive;
+}
+
+// Reports whether the configured provider can actually reach its mail server.
+// Used by the diagnostics endpoint to expose the otherwise-hidden failure.
+export async function verifyEmailTransport() {
+  if (!verifyTransport) {
+    return { ok: false, provider: activeProvider, error: 'Email provider is not configured.' };
+  }
+  try {
+    await Promise.race([
+      verifyTransport(),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Verification timed out after ${mailConfig.timeoutMs}ms.`)),
+          mailConfig.timeoutMs,
+        ),
+      ),
+    ]);
+    return { ok: true, provider: activeProvider };
+  } catch (error) {
+    return { ok: false, provider: activeProvider, error: error.message };
+  }
+}
+
+export function getEmailStatus() {
+  return {
+    provider: mailConfig.provider,
+    activeProvider,
+    isLive: mailConfig.isLive,
+    from: mailConfig.from,
+    hasTransport: Boolean(transport),
+  };
 }
 
 export { templates };

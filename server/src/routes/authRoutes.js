@@ -41,7 +41,7 @@ function verifyPassword(password, salt, expectedHash) {
   }
 }
 
-function buildSafeUserProfile(user) {
+export function buildSafeUserProfile(user) {
   const citizenRecord =
     user.role === 'citizen'
       ? registeredCitizens.find((entry) => entry.nationalId === user.nationalId) ?? null

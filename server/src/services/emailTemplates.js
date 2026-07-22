@@ -59,20 +59,40 @@ const shell = (title, bodyHtml) => `
 </html>`;
 
 export const templates = {
-  inviteCreated({ recipientName, institutionName, targetLevel, registrationLink, expiresAt, location }) {
+  inviteCreated({
+    recipientName,
+    institutionName,
+    targetLevel,
+    registrationLink,
+    qrImageUrl,
+    expiresAt,
+    location,
+  }) {
+    const qrBlock = qrImageUrl
+      ? `
+        <p style="margin:18px 0 6px;font-size:13px;color:#64748b;">Or scan this QR code with your phone to activate:</p>
+        <p style="margin:0 0 4px;">
+          <img src="${escapeHtml(qrImageUrl)}" alt="Activation QR code" width="200" height="200"
+            style="width:200px;height:200px;border:1px solid #dbe3ee;border-radius:12px;background:#ffffff;padding:8px;" />
+        </p>`
+      : '';
+
     return {
       subject: `SACCFP institution invite: ${institutionName}`,
       html: shell(
-        'Institution registration invite',
+        'Activate your institution account',
         paragraph(`Hello ${escapeHtml(firstName(recipientName))},`) +
-          paragraph('You have been invited to register an institution on SACCFP.') +
+          paragraph(
+            'You have been invited to activate your institution on SACCFP. Open the secure link below, set your password, and you will be signed in to complete your institution profile.',
+          ) +
           rows([
             ['Institution', institutionName],
             ['Target level', targetLevel],
             ['Location', location],
             ['Expires', expiresAt],
           ]) +
-          linkButton(registrationLink, 'Open invite link') +
+          linkButton(registrationLink, 'Activate & set password') +
+          qrBlock +
           paragraph('Use this link only for the authorized institution leader.'),
       ),
     };

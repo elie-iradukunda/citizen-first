@@ -34,7 +34,6 @@ const dashboardLinksByRole = {
   ],
   institution_admin: [
     { to: '/dashboard/institution', label: 'Dashboard Home', icon: LayoutDashboard },
-    { to: '/dashboard/institution#testing-users', label: 'Create Testing Users', icon: Users },
     { to: '/dashboard/institution#services', label: 'Register Services', icon: Wrench },
     { to: '/dashboard/institution#departments', label: 'Departments', icon: Building2 },
     { to: '/dashboard/institution#staff', label: 'Register Staff', icon: UserCog },
@@ -69,12 +68,25 @@ const dashboardLinksByRole = {
 // RIB workflow-chain leaders and seeded governance leaders share the RIB
 // Officer 1 review pages; national oversight roles share the admin pages.
 dashboardLinksByRole.institution_officer = dashboardLinksByRole.rib_officer_1;
-dashboardLinksByRole.province_leader = dashboardLinksByRole.rib_officer_1;
-dashboardLinksByRole.district_leader = dashboardLinksByRole.rib_officer_1;
-dashboardLinksByRole.sector_leader = dashboardLinksByRole.rib_officer_1;
-dashboardLinksByRole.cell_leader = dashboardLinksByRole.rib_officer_1;
-dashboardLinksByRole.village_leader = dashboardLinksByRole.rib_officer_1;
 dashboardLinksByRole.oversight_admin = dashboardLinksByRole.national_admin;
+
+// Governance leaders (province → village) both review cases on the officer
+// pages AND own an institution, so their nav combines case review with the
+// institution management (Settings) links.
+const governanceLeaderLinks = [
+  ...dashboardLinksByRole.rib_officer_1,
+  { to: '/dashboard/institution', label: 'Manage Institution', icon: Building2 },
+  { to: '/dashboard/institution#services', label: 'Register Services', icon: Wrench },
+  { to: '/dashboard/institution#departments', label: 'Departments', icon: Building2 },
+  { to: '/dashboard/institution#staff', label: 'Register Staff', icon: UserCog },
+  { to: '/dashboard/institution#linking', label: 'Link Staff to Services', icon: Link2 },
+  { to: '/dashboard/institution#qr-code', label: 'Institution QR Code', icon: QrCode },
+];
+dashboardLinksByRole.province_leader = governanceLeaderLinks;
+dashboardLinksByRole.district_leader = governanceLeaderLinks;
+dashboardLinksByRole.sector_leader = governanceLeaderLinks;
+dashboardLinksByRole.cell_leader = governanceLeaderLinks;
+dashboardLinksByRole.village_leader = governanceLeaderLinks;
 
 function initials(name = '') {
   return name.split(' ').map((part) => part[0] || '').join('').slice(0, 2).toUpperCase();

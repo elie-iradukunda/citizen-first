@@ -4,6 +4,8 @@ import QRCode from 'qrcode';
 import { z } from 'zod';
 import { buildInstitutionAccessUrl, getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { getAuthUserFromRequest } from '../middleware/authMiddleware.js';
+import { createSession } from '../data/sessionStore.js';
+import { buildSafeUserProfile } from './authRoutes.js';
 import { sendEmailInBackground, templates } from '../services/emailService.js';
 import {
   GOVERNMENT_LEVELS,
@@ -1416,10 +1418,37 @@ router.get('/invites/:token', (request, response) => {
       status: invite.status,
       expiresAt: invite.expiresAt,
       expired,
+      contactEmail: invite.contactEmail ?? null,
       createdByRole: invite.createdByRole,
       parentInstitutionId: invite.parentInstitutionId ?? null,
     },
   });
+});
+
+// Serves the invite QR as a real PNG at a stable URL. Email clients such as
+// Gmail strip base64 `data:` image sources, so the invitation email references
+// this hosted image instead. The QR encodes the activation link.
+router.get('/invites/:token/qr.png', async (request, response, next) => {
+  try {
+    const invite = getInviteByToken(request.params.token);
+    if (!invite) {
+      return response.status(404).json({ message: 'Invite token not found.' });
+    }
+
+    const activationLink = `${getClientBaseUrl()}/register/institution?inviteToken=${invite.token}`;
+    const pngBuffer = await QRCode.toBuffer(activationLink, {
+      type: 'png',
+      margin: 2,
+      width: 300,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+
+    response.set('Content-Type', 'image/png');
+    response.set('Cache-Control', 'public, max-age=300');
+    return response.send(pngBuffer);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.post('/invites', async (request, response, next) => {
@@ -1478,19 +1507,13 @@ router.post('/invites', async (request, response, next) => {
         ? findDirectInviteParentInstitution(payload.targetLevel, location)
         : null;
 
-    if (
-      ['national_admin', 'oversight_admin'].includes(actor.role) &&
-      payload.targetLevel !== 'province' &&
-      !directInviteParent
-    ) {
-      return response.status(400).json({
-        message: `A ${PARENT_LEVEL_BY_LEVEL[payload.targetLevel]}-level parent institution must already exist for this location before creating a ${payload.targetLevel}-level invite.`,
-      });
-    }
-
+    // National/oversight admin may create an invite for ANY level directly,
+    // even if the parent institution does not exist yet. When a real parent
+    // already exists we still attach to it (so the hierarchy links up); when it
+    // does not, the invite is parented to the national root.
     const parentInstitutionId =
       actor.role === 'national_admin' || actor.role === 'oversight_admin'
-        ? directInviteParent.institutionId
+        ? directInviteParent?.institutionId ?? NATIONAL_ROOT_ID
         : actor.institutionId;
     const registrationLink = `${getClientBaseUrl()}/register/institution?inviteToken=${inviteToken}`;
     const qrCodeDataUrl = await QRCode.toDataURL(registrationLink, {
@@ -1523,6 +1546,7 @@ router.post('/invites', async (request, response, next) => {
     institutionInvites.push(inviteRecord);
 
     if (inviteRecord.contactEmail) {
+      const qrImageUrl = `${getClientBaseUrl()}/api/registration/invites/${inviteRecord.token}/qr.png`;
       sendEmailInBackground(
         inviteRecord.contactEmail,
         templates.inviteCreated({
@@ -1530,6 +1554,7 @@ router.post('/invites', async (request, response, next) => {
           institutionName: inviteRecord.institutionNameHint,
           targetLevel: inviteRecord.targetLevel,
           registrationLink: inviteRecord.registrationLink,
+          qrImageUrl,
           expiresAt: new Date(inviteRecord.expiresAt).toLocaleString('en-US'),
           location: formatLocationForEmail(inviteRecord.location),
         }),
@@ -1545,264 +1570,257 @@ router.post('/invites', async (request, response, next) => {
   }
 });
 
-router.post('/institutions/complete', async (request, response, next) => {
-  try {
-    const parseResult = registerInstitutionSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return response.status(400).json({
-        message: 'Invalid institution registration payload.',
-        errors: parseResult.error.flatten(),
-      });
-    }
+// Shared institution + leader creation from a validated invite. Returns an
+// HTTP-shaped { status, body } (plus the created leaderUser, which the
+// activation flow uses to open a session). Both /institutions/complete (full
+// registration form) and /institutions/activate (lean onboarding) funnel here.
+async function registerInstitutionFromInvite(inviteToken, payload) {
+  const invite = getInviteByToken(inviteToken);
 
-    const payload = parseResult.data;
-    const invite = getInviteByToken(payload.inviteToken);
+  if (!invite) {
+    return { status: 404, body: { message: 'Invite token not found.' } };
+  }
 
-    if (!invite) {
-      return response.status(404).json({
-        message: 'Invite token not found.',
-      });
-    }
+  if (invite.status !== 'pending') {
+    return { status: 400, body: { message: 'Invite token has already been used or revoked.' } };
+  }
 
-    if (invite.status !== 'pending') {
-      return response.status(400).json({
-        message: 'Invite token has already been used or revoked.',
-      });
-    }
+  if (new Date(invite.expiresAt) < new Date()) {
+    return { status: 400, body: { message: 'Invite token has expired.' } };
+  }
 
-    if (new Date(invite.expiresAt) < new Date()) {
-      return response.status(400).json({
-        message: 'Invite token has expired.',
-      });
-    }
+  const { location, errors } = validateLocationByLevel(invite.targetLevel, payload.location);
+  if (errors.length > 0) {
+    return { status: 400, body: { message: 'Location validation failed.', errors } };
+  }
 
-    const { location, errors } = validateLocationByLevel(invite.targetLevel, payload.location);
-    if (errors.length > 0) {
-      return response.status(400).json({
-        message: 'Location validation failed.',
-        errors,
-      });
-    }
+  if (
+    location.province !== invite.location.province ||
+    (invite.location.district && invite.location.district !== location.district) ||
+    (invite.location.sector && invite.location.sector !== location.sector) ||
+    (invite.location.cell && invite.location.cell !== location.cell)
+  ) {
+    return { status: 400, body: { message: 'Registration location does not match invite scope.' } };
+  }
 
-    if (
-      location.province !== invite.location.province ||
-      (invite.location.district && invite.location.district !== location.district) ||
-      (invite.location.sector && invite.location.sector !== location.sector) ||
-      (invite.location.cell && invite.location.cell !== location.cell)
-    ) {
-      return response.status(400).json({
-        message: 'Registration location does not match invite scope.',
-      });
-    }
+  const hasLeaderNationalId = systemUsers.some(
+    (user) => user.nationalId && user.nationalId === payload.leader.nationalId,
+  );
+  if (hasLeaderNationalId) {
+    return {
+      status: 409,
+      body: { message: 'Leader with this national ID already exists in system.' },
+    };
+  }
 
-    const hasLeaderNationalId = systemUsers.some(
-      (user) => user.nationalId && user.nationalId === payload.leader.nationalId,
-    );
-    if (hasLeaderNationalId) {
-      return response.status(409).json({
-        message: 'Leader with this national ID already exists in system.',
-      });
-    }
+  if (isEmailAlreadyInUse(payload.leader.email)) {
+    return { status: 409, body: { message: 'Leader email is already registered.' } };
+  }
 
-    if (isEmailAlreadyInUse(payload.leader.email)) {
-      return response.status(409).json({
-        message: 'Leader email is already registered.',
-      });
-    }
+  const level = invite.targetLevel;
+  const nextLevel = getNextLevelForLevel(level);
+  const expectedChildUnits = nextLevel ? payload.expectedChildUnits : null;
 
-    const level = invite.targetLevel;
-    const nextLevel = getNextLevelForLevel(level);
-    const expectedChildUnits = nextLevel ? payload.expectedChildUnits : null;
-
-    if (nextLevel && (typeof expectedChildUnits !== 'number' || expectedChildUnits < 1)) {
-      return response.status(400).json({
+  if (nextLevel && (typeof expectedChildUnits !== 'number' || expectedChildUnits < 1)) {
+    return {
+      status: 400,
+      body: {
         message: `Expected number of ${getChildUnitLabelForLevel(level)} is required for ${level} level.`,
-      });
-    }
+      },
+    };
+  }
 
-    const parentInstitutionId =
-      invite.parentInstitutionId ??
-      (['national_admin', 'oversight_admin'].includes(invite.createdByRole)
-        ? NATIONAL_ROOT_ID
-        : null);
-    const parentInstitution =
-      parentInstitutionId && parentInstitutionId !== NATIONAL_ROOT_ID
-        ? findInstitutionById(parentInstitutionId)
-        : null;
+  const parentInstitutionId =
+    invite.parentInstitutionId ??
+    (['national_admin', 'oversight_admin'].includes(invite.createdByRole)
+      ? NATIONAL_ROOT_ID
+      : null);
+  const parentInstitution =
+    parentInstitutionId && parentInstitutionId !== NATIONAL_ROOT_ID
+      ? findInstitutionById(parentInstitutionId)
+      : null;
 
-    if (level !== 'province' && !parentInstitutionId) {
-      return response.status(400).json({
+  if (level !== 'province' && !parentInstitutionId) {
+    return {
+      status: 400,
+      body: {
         message:
           'Invite relationship is invalid. Non-province registrations require a parent institution.',
-      });
-    }
+      },
+    };
+  }
 
-    if (parentInstitutionId && parentInstitutionId !== NATIONAL_ROOT_ID && !parentInstitution) {
-      return response.status(400).json({
-        message: 'Parent institution was not found for this invite chain.',
-      });
-    }
+  if (parentInstitutionId && parentInstitutionId !== NATIONAL_ROOT_ID && !parentInstitution) {
+    return {
+      status: 400,
+      body: { message: 'Parent institution was not found for this invite chain.' },
+    };
+  }
 
-    if (parentInstitution && getNextLevelForLevel(parentInstitution.level) !== level) {
-      return response.status(400).json({
-        message: 'Invite chain is inconsistent with hierarchy levels.',
-      });
-    }
+  if (parentInstitution && getNextLevelForLevel(parentInstitution.level) !== level) {
+    return { status: 400, body: { message: 'Invite chain is inconsistent with hierarchy levels.' } };
+  }
 
-    const duplicateInstitution = registeredInstitutions.find(
-      (entry) =>
-        entry.level === level &&
-        isSameScopeForLevel(level, entry.location, location),
-    );
-    if (duplicateInstitution) {
-      return response.status(409).json({
+  const duplicateInstitution = registeredInstitutions.find(
+    (entry) => entry.level === level && isSameScopeForLevel(level, entry.location, location),
+  );
+  if (duplicateInstitution) {
+    return {
+      status: 409,
+      body: {
         message: `A ${level}-level institution is already registered for this location scope.`,
         institutionId: duplicateInstitution.institutionId,
-      });
-    }
-
-    const services = normalizeServiceCatalog(payload.services ?? []);
-    const institutionId = generateId(LEVEL_PREFIX[level], registeredInstitutions.length);
-    const institutionSlug = slugify(`${payload.institutionName}-${institutionId}`);
-
-    const institutionRecord = {
-      institutionId,
-      slug: institutionSlug,
-      level,
-      parentInstitutionId,
-      institutionName: payload.institutionName,
-      institutionType: payload.institutionType,
-      officialEmail: payload.officialEmail || null,
-      officialPhone: payload.officialPhone,
-      officeAddress: payload.officeAddress,
-      location,
-      leaderNationalId: payload.leader.nationalId,
-      childLevel: nextLevel,
-      childUnitLabel: getChildUnitLabelForLevel(level),
-      expectedChildUnits,
-      registeredChildUnits: 0,
-      childInstitutionIds: [],
-      services,
-      employeeCount: 0,
-      createdByInviteId: invite.inviteId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: 'active',
-    };
-
-    const qrCodeDataUrl = await QRCode.toDataURL(buildInstitutionAccessUrl(institutionSlug), {
-      margin: 2,
-      width: 280,
-      color: {
-        dark: '#000000',
-        light: '#ffffff',
       },
-    });
-
-    institutionRecord.qrCodeDataUrl = qrCodeDataUrl;
-
-    const leaderRole = LEVEL_TO_ROLE[level];
-    const leaderAccessKey = getAccessKeyForNewLeader(level);
-    const leaderUserId = generateId('USR', systemUsers.length);
-    const leaderEmail = normalizeEmail(payload.leader.email);
-    const leaderUser = {
-      userId: leaderUserId,
-      role: leaderRole,
-      level,
-      institutionId,
-      fullName: payload.leader.fullName,
-      email: leaderEmail,
-      nationalId: payload.leader.nationalId,
-      accessKey: leaderAccessKey,
-      status: 'active',
-      location,
-      ...createPasswordCredentials(payload.leader.password, leaderUserId),
-      createdAt: new Date().toISOString(),
     };
+  }
 
-    systemUsers.push(leaderUser);
+  const services = normalizeServiceCatalog(payload.services ?? []);
+  const institutionId = generateId(LEVEL_PREFIX[level], registeredInstitutions.length);
+  const institutionSlug = slugify(`${payload.institutionName}-${institutionId}`);
 
-    const leaderEmployeeRecord = {
+  const institutionRecord = {
+    institutionId,
+    slug: institutionSlug,
+    level,
+    parentInstitutionId,
+    institutionName: payload.institutionName,
+    institutionType: payload.institutionType,
+    officialEmail: payload.officialEmail || null,
+    officialPhone: payload.officialPhone,
+    officeAddress: payload.officeAddress,
+    location,
+    leaderNationalId: payload.leader.nationalId,
+    childLevel: nextLevel,
+    childUnitLabel: getChildUnitLabelForLevel(level),
+    expectedChildUnits,
+    registeredChildUnits: 0,
+    childInstitutionIds: [],
+    services,
+    employeeCount: 0,
+    createdByInviteId: invite.inviteId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    status: 'active',
+  };
+
+  const qrCodeDataUrl = await QRCode.toDataURL(buildInstitutionAccessUrl(institutionSlug), {
+    margin: 2,
+    width: 280,
+    color: {
+      dark: '#000000',
+      light: '#ffffff',
+    },
+  });
+
+  institutionRecord.qrCodeDataUrl = qrCodeDataUrl;
+
+  const leaderRole = LEVEL_TO_ROLE[level];
+  const leaderAccessKey = getAccessKeyForNewLeader(level);
+  const leaderUserId = generateId('USR', systemUsers.length);
+  const leaderEmail = normalizeEmail(payload.leader.email);
+  const leaderUser = {
+    userId: leaderUserId,
+    role: leaderRole,
+    level,
+    institutionId,
+    fullName: payload.leader.fullName,
+    email: leaderEmail,
+    phone: payload.leader.phone,
+    nationalId: payload.leader.nationalId,
+    positionTitle: payload.leader.positionTitle,
+    accessKey: leaderAccessKey,
+    status: 'active',
+    location,
+    ...createPasswordCredentials(payload.leader.password, leaderUserId),
+    createdAt: new Date().toISOString(),
+  };
+
+  systemUsers.push(leaderUser);
+
+  const leaderEmployeeRecord = {
+    employeeId: generateId('EMP', institutionEmployees.length),
+    institutionId,
+    fullName: payload.leader.fullName,
+    nationalId: payload.leader.nationalId,
+    phone: payload.leader.phone,
+    email: leaderEmail,
+    positionTitle: payload.leader.positionTitle,
+    positionKinyarwanda: payload.leader.positionKinyarwanda,
+    reportsTo: POSITION_TEMPLATES[level]?.reportsTo ?? 'N/A',
+    description: payload.leader.description || null,
+    status: 'Active',
+    isLeader: true,
+    createdAt: new Date().toISOString(),
+  };
+  institutionEmployees.push(leaderEmployeeRecord);
+
+  (payload.departments ?? []).forEach((department) => {
+    institutionDepartments.push({
+      departmentId: generateId('DEP', institutionDepartments.length),
+      institutionId,
+      name: department.name,
+      description: department.description || null,
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  (payload.employees ?? []).forEach((employee) => {
+    institutionEmployees.push({
       employeeId: generateId('EMP', institutionEmployees.length),
       institutionId,
-      fullName: payload.leader.fullName,
-      nationalId: payload.leader.nationalId,
-      phone: payload.leader.phone,
-      email: leaderEmail,
-      positionTitle: payload.leader.positionTitle,
-      positionKinyarwanda: payload.leader.positionKinyarwanda,
-      reportsTo: POSITION_TEMPLATES[level]?.reportsTo ?? 'N/A',
-      description: payload.leader.description || null,
-      status: 'Active',
-      isLeader: true,
+      leaderCode: employee.leaderCode || null,
+      fullName: employee.fullName,
+      nationalId: employee.nationalId,
+      phone: employee.phone,
+      email: employee.email || null,
+      positionTitle: employee.positionTitle,
+      positionKinyarwanda: employee.positionKinyarwanda || null,
+      reportsTo: employee.reportsTo || null,
+      description: employee.description || null,
+      status: employee.status,
+      isLeader: false,
       createdAt: new Date().toISOString(),
-    };
-    institutionEmployees.push(leaderEmployeeRecord);
-
-    (payload.departments ?? []).forEach((department) => {
-      institutionDepartments.push({
-        departmentId: generateId('DEP', institutionDepartments.length),
-        institutionId,
-        name: department.name,
-        description: department.description || null,
-        createdAt: new Date().toISOString(),
-      });
     });
+  });
 
-    (payload.employees ?? []).forEach((employee) => {
-      institutionEmployees.push({
-        employeeId: generateId('EMP', institutionEmployees.length),
-        institutionId,
-        leaderCode: employee.leaderCode || null,
-        fullName: employee.fullName,
-        nationalId: employee.nationalId,
-        phone: employee.phone,
-        email: employee.email || null,
-        positionTitle: employee.positionTitle,
-        positionKinyarwanda: employee.positionKinyarwanda || null,
-        reportsTo: employee.reportsTo || null,
-        description: employee.description || null,
-        status: employee.status,
-        isLeader: false,
-        createdAt: new Date().toISOString(),
-      });
-    });
+  const totalEmployeeCount = institutionEmployees.filter(
+    (entry) => entry.institutionId === institutionId,
+  ).length;
+  institutionRecord.employeeCount = totalEmployeeCount;
+  registeredInstitutions.push(institutionRecord);
 
-    const totalEmployeeCount = institutionEmployees.filter(
-      (entry) => entry.institutionId === institutionId,
-    ).length;
-    institutionRecord.employeeCount = totalEmployeeCount;
-    registeredInstitutions.push(institutionRecord);
-
-    if (parentInstitution) {
-      if (!Array.isArray(parentInstitution.childInstitutionIds)) {
-        parentInstitution.childInstitutionIds = [];
-      }
-      if (!parentInstitution.childInstitutionIds.includes(institutionId)) {
-        parentInstitution.childInstitutionIds.push(institutionId);
-      }
-      parentInstitution.registeredChildUnits = getChildrenInstitutions(
-        parentInstitution.institutionId,
-      ).length;
-      parentInstitution.updatedAt = new Date().toISOString();
+  if (parentInstitution) {
+    if (!Array.isArray(parentInstitution.childInstitutionIds)) {
+      parentInstitution.childInstitutionIds = [];
     }
+    if (!parentInstitution.childInstitutionIds.includes(institutionId)) {
+      parentInstitution.childInstitutionIds.push(institutionId);
+    }
+    parentInstitution.registeredChildUnits = getChildrenInstitutions(
+      parentInstitution.institutionId,
+    ).length;
+    parentInstitution.updatedAt = new Date().toISOString();
+  }
 
-    invite.status = 'used';
-    invite.usedAt = new Date().toISOString();
-    invite.usedByInstitutionId = institutionId;
+  invite.status = 'used';
+  invite.usedAt = new Date().toISOString();
+  invite.usedByInstitutionId = institutionId;
 
-    sendEmailInBackground(
-      leaderUser.email,
-      templates.institutionRegistered({
-        leaderName: leaderUser.fullName,
-        institutionName: institutionRecord.institutionName,
-        loginEmail: leaderUser.email,
-        accessKey: leaderAccessKey,
-        publicUrl: buildInstitutionAccessUrl(institutionSlug),
-      }),
-    );
+  sendEmailInBackground(
+    leaderUser.email,
+    templates.institutionRegistered({
+      leaderName: leaderUser.fullName,
+      institutionName: institutionRecord.institutionName,
+      loginEmail: leaderUser.email,
+      accessKey: leaderAccessKey,
+      publicUrl: buildInstitutionAccessUrl(institutionSlug),
+    }),
+  );
 
-    return response.status(201).json({
+  return {
+    status: 201,
+    leaderUser,
+    body: {
       message: 'Institution registered successfully.',
       item: {
         institution: institutionRecord,
@@ -1826,6 +1844,131 @@ router.post('/institutions/complete', async (request, response, next) => {
         },
         servicesCount: services.length,
       },
+    },
+  };
+}
+
+router.post('/institutions/complete', async (request, response, next) => {
+  try {
+    const parseResult = registerInstitutionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return response.status(400).json({
+        message: 'Invalid institution registration payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+
+    const result = await registerInstitutionFromInvite(
+      parseResult.data.inviteToken,
+      parseResult.data,
+    );
+    return response.status(result.status).json(result.body);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const activateInstitutionSchema = z.object({
+  inviteToken: z.string().min(16),
+  institutionName: z.string().min(4).max(180).optional().or(z.literal('')),
+  leader: z.object({
+    fullName: z.string().min(4).max(140),
+    nationalId: nationalIdSchema,
+    phone: phoneSchema,
+    email: emailSchema.optional().or(z.literal('')),
+    password: passwordSchema,
+  }),
+});
+
+const INSTITUTION_TYPE_BY_LEVEL = {
+  province: 'Provincial Government Institution',
+  district: 'District Government Institution',
+  sector: 'Sector Government Institution',
+  cell: 'Cell Government Institution',
+  village: 'Village Government Unit',
+};
+
+// Lean activation: the invited leader only sets identity + password (like a
+// password reset). The institution is created with sensible defaults, then the
+// leader is auto-logged-in so they can complete services, departments, staff,
+// and links in Settings.
+router.post('/institutions/activate', async (request, response, next) => {
+  try {
+    const parseResult = activateInstitutionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return response.status(400).json({
+        message: 'Invalid activation payload.',
+        errors: parseResult.error.flatten(),
+      });
+    }
+
+    const data = parseResult.data;
+    const invite = getInviteByToken(data.inviteToken);
+    if (!invite) {
+      return response.status(404).json({ message: 'Invite token not found.' });
+    }
+
+    const level = invite.targetLevel;
+    const leaderEmail =
+      (data.leader.email && data.leader.email.trim()) || invite.contactEmail || '';
+    if (!leaderEmail) {
+      return response.status(400).json({
+        message: 'An email address is required to activate the account. Ask the inviter to include one.',
+      });
+    }
+
+    const nextLevel = getNextLevelForLevel(level);
+    const positionTemplate = POSITION_TEMPLATES[level] ?? {};
+    const institutionName = (
+      data.institutionName?.trim() ||
+      invite.institutionNameHint ||
+      `${level} institution`
+    ).trim();
+
+    const fullPayload = {
+      inviteToken: data.inviteToken,
+      institutionName,
+      institutionType: INSTITUTION_TYPE_BY_LEVEL[level] ?? 'Government Institution',
+      officialEmail: '',
+      officialPhone: data.leader.phone,
+      officeAddress: 'To be completed in settings',
+      location: invite.location,
+      leader: {
+        fullName: data.leader.fullName,
+        nationalId: data.leader.nationalId,
+        phone: data.leader.phone,
+        email: leaderEmail,
+        password: data.leader.password,
+        positionTitle: positionTemplate.title ?? 'Institution Leader',
+        positionKinyarwanda: positionTemplate.titleKinyarwanda ?? 'Umuyobozi',
+        description: '',
+      },
+      departments: [],
+      employees: [],
+      services: [],
+      expectedChildUnits: nextLevel ? 1 : undefined,
+    };
+
+    const result = await registerInstitutionFromInvite(data.inviteToken, fullPayload);
+    if (result.status !== 201 || !result.leaderUser) {
+      return response.status(result.status).json(result.body);
+    }
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    createSession(token, {
+      userId: result.leaderUser.userId,
+      createdAt: now.toISOString(),
+      lastSeenAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    });
+
+    return response.status(201).json({
+      ...result.body,
+      message: 'Institution activated. You are now signed in.',
+      token,
+      user: buildSafeUserProfile(result.leaderUser),
     });
   } catch (error) {
     return next(error);

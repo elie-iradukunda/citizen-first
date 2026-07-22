@@ -136,6 +136,20 @@ export function fetchInviteDetail(inviteToken) {
   return request(`/api/registration/invites/${inviteToken}`);
 }
 
+export function inviteQrUrl(inviteToken) {
+  return `${API_BASE_URL}/api/registration/invites/${encodeURIComponent(inviteToken)}/qr.png`;
+}
+
+export function activateInstitution(payload) {
+  return request('/api/registration/institutions/activate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function completeInstitutionRegistration(payload) {
   return request('/api/registration/institutions/complete', {
     method: 'POST',
