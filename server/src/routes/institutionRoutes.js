@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import QRCode from 'qrcode';
-import { buildInstitutionAccessUrl } from '../config/publicBaseUrl.js';
+import { buildInstitutionAccessUrl, getClientBaseUrl } from '../config/publicBaseUrl.js';
 import {
   institutionDepartments,
   institutionEmployees,
