@@ -6,10 +6,16 @@ let transport = null;
 
 if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
   const gmail = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    family: 4,
     auth: {
       user: mailConfig.gmailUser,
       pass: mailConfig.gmailAppPassword,
+    },
+    tls: {
+      servername: 'smtp.gmail.com',
     },
     connectionTimeout: 8000,
     greetingTimeout: 8000,
