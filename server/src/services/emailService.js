@@ -1,15 +1,34 @@
+import dns from 'node:dns';
 import nodemailer from 'nodemailer';
 import { mailConfig } from '../config/mail.js';
 import { templates } from './emailTemplates.js';
 
 let transport = null;
 
+async function resolveGmailSmtpHost() {
+  if (process.env.GMAIL_SMTP_HOST) {
+    return process.env.GMAIL_SMTP_HOST;
+  }
+
+  if (process.env.GMAIL_FORCE_IPV4 === 'false') {
+    return 'smtp.gmail.com';
+  }
+
+  try {
+    const addresses = await dns.promises.resolve4('smtp.gmail.com');
+    return addresses[0] ?? 'smtp.gmail.com';
+  } catch (error) {
+    console.warn(`Could not resolve Gmail IPv4 SMTP host, using smtp.gmail.com: ${error.message}`);
+    return 'smtp.gmail.com';
+  }
+}
+
 if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
+  const smtpHost = await resolveGmailSmtpHost();
   const gmail = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host: smtpHost,
     port: 465,
     secure: true,
-    family: 4,
     auth: {
       user: mailConfig.gmailUser,
       pass: mailConfig.gmailAppPassword,
