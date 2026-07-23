@@ -17,6 +17,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
+import CaseChat from '../components/dashboard/CaseChat';
 import {
   acceptCitizenFeedback,
   escalateCitizenComplaint,
@@ -1771,6 +1772,7 @@ export function CitizenTrackCasePage() {
   const [searchParams] = useSearchParams();
   const { dashboard, isLoading, error } = useCitizenData();
   const [caseId, setCaseId] = useState(searchParams.get('caseId') ?? '');
+  const [threadCase, setThreadCase] = useState(null);
 
   const cases = useMemo(() => dashboard?.cases ?? [], [dashboard]);
   const activeCase = useMemo(() => {
@@ -2045,6 +2047,12 @@ export function CitizenTrackCasePage() {
                 })}
               </ol>
             </Card>
+
+            <CaseChat
+              caseData={threadCase && threadCase.id === activeCase.id ? threadCase : activeCase}
+              viewerRole="citizen"
+              onSent={setThreadCase}
+            />
           </div>
         ) : (
           <Card title="Case not found" subtitle="Check the case ID and try again." icon={ClipboardList}>

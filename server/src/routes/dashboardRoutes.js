@@ -1054,6 +1054,16 @@ function buildComplaintSummary(item) {
     canEscalate:
       item.status === 'responded' && Boolean(getNextEscalationLevel(item.currentLevel)),
     nextEscalationLevel: getNextEscalationLevel(item.currentLevel),
+    // Two-way chat between the citizen and the RIB officer. It opens once the
+    // officer records the first official response.
+    chatOpen: Boolean(item.response),
+    messages: (item.messages ?? []).map((entry) => ({
+      id: entry.id,
+      sender: entry.sender,
+      senderName: entry.senderName,
+      body: entry.body,
+      createdAt: entry.createdAt,
+    })),
   };
 }
 
@@ -1663,6 +1673,37 @@ function canUserRespondToComplaint(user, complaint) {
 
   if (ADMIN_DASHBOARD_ROLES.has(user.role)) {
     return complaint.assignedOfficerId === user.userId;
+  }
+
+  if (user.role === 'rib_officer_1' || user.role === 'rib_officer_2') {
+    return matchesUserScope(user, getComplaintLocation(complaint));
+  }
+
+  const currentEmployee = findInstitutionEmployeeByUser(user);
+  if (currentEmployee?.employeeId && complaint.assignedOfficerId === currentEmployee.employeeId) {
+    return true;
+  }
+
+  if (user.role === 'institution_officer') {
+    return (
+      complaint.institutionId === user.institutionId ||
+      matchesUserScope(user, getComplaintLocation(complaint))
+    );
+  }
+
+  return false;
+}
+
+// Whether a reviewer may see/participate in a complaint's thread. Unlike
+// canUserRespondToComplaint this ignores case status, so an officer can still
+// chat on a case they have already responded to.
+function canUserReviewComplaint(user, complaint) {
+  if (!user || !complaint) {
+    return false;
+  }
+
+  if (ADMIN_DASHBOARD_ROLES.has(user.role)) {
+    return true;
   }
 
   if (user.role === 'rib_officer_1' || user.role === 'rib_officer_2') {
@@ -2745,6 +2786,85 @@ router.post('/officer/complaints/:complaintId/respond', (request, response) => {
 
   return response.json({
     message: 'Citizen feedback recorded successfully.',
+    item: buildComplaintSummary(complaint),
+  });
+});
+
+const complaintMessageSchema = z.object({
+  body: z.string().trim().min(1, 'Message cannot be empty.').max(2000),
+});
+
+// Two-way chat on a case, shared by the citizen (owner) and the RIB officer.
+// It only opens after the officer has recorded the first official response.
+router.post('/complaints/:complaintId/messages', (request, response) => {
+  const user = request.auth.user;
+  const parseResult = complaintMessageSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid message payload.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const complaint = complaints.find((item) => item.id === request.params.complaintId);
+  if (!complaint) {
+    return response.status(404).json({ message: 'Complaint not found.' });
+  }
+
+  if (!complaint.response) {
+    return response.status(400).json({
+      message: 'The chat opens after the RIB officer records the first response.',
+    });
+  }
+
+  const isOwnerCitizen =
+    user.role === 'citizen' && complaint.reporterUserId && complaint.reporterUserId === user.userId;
+  const isReviewer =
+    (OFFICER_DASHBOARD_ROLES.has(user.role) || ADMIN_DASHBOARD_ROLES.has(user.role)) &&
+    canUserReviewComplaint(user, complaint);
+
+  if (!isOwnerCitizen && !isReviewer) {
+    return response.status(403).json({
+      message: 'You cannot send messages on this case.',
+    });
+  }
+
+  const sender = isOwnerCitizen ? 'citizen' : 'rib';
+  let senderName;
+  if (isOwnerCitizen) {
+    senderName = buildCitizenReporterProfile(user).fullName;
+  } else {
+    const employee = findInstitutionEmployeeByUser(user);
+    senderName = employee?.fullName ?? user.fullName ?? 'RIB officer';
+  }
+
+  const now = new Date();
+  const messageRecord = {
+    id: `MSG-${now.getTime()}-${Math.floor(Math.random() * 1000)}`,
+    sender,
+    senderName,
+    body: parseResult.data.body,
+    createdAt: now.toISOString(),
+  };
+
+  complaint.messages = [...(complaint.messages ?? []), messageRecord];
+  complaint.updatedAt = now.toISOString();
+
+  // Let the citizen know by email when the RIB officer adds a chat message.
+  if (sender === 'rib' && complaint.reporterProfile?.email) {
+    sendEmailInBackground(
+      complaint.reporterProfile.email,
+      templates.complaintResponse({
+        fullName: complaint.reporterProfile.fullName,
+        caseId: complaint.id,
+        responderName: senderName,
+        actionTaken: messageRecord.body,
+      }),
+    );
+  }
+
+  return response.json({
+    message: 'Message sent.',
     item: buildComplaintSummary(complaint),
   });
 });

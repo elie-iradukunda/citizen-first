@@ -98,3 +98,7 @@ export function fetchAdminDashboard() {
 export function submitOfficerComplaintResponse(complaintId, payload) {
   return postJson(`/api/dashboard/officer/complaints/${complaintId}/respond`, payload);
 }
+
+export function sendComplaintMessage(complaintId, body) {
+  return postJson(`/api/dashboard/complaints/${complaintId}/messages`, { body });
+}

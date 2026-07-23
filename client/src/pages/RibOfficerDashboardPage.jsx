@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
+import CaseChat from '../components/dashboard/CaseChat';
 import { useAuth } from '../context/AuthContext';
 import { fetchOfficerDashboard, submitOfficerComplaintResponse } from '../lib/dashboardApi';
 
@@ -696,6 +697,12 @@ function RibOfficerDashboardPage() {
                 </div>
               </div>
             ) : null}
+
+            <CaseChat
+              caseData={modal.data}
+              viewerRole="rib"
+              onSent={(updated) => setModal((current) => ({ ...current, data: updated }))}
+            />
           </div>
         ) : null}
       </DetailsModal>
