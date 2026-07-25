@@ -62,4 +62,21 @@ export function removeSession(token) {
   return removed;
 }
 
+// Used after a password reset: whoever was signed in with the old password is
+// signed out everywhere, so a stolen session cannot outlive the reset.
+export function removeSessionsForUser(userId) {
+  let removedCount = 0;
+  for (const [token, session] of activeSessions.entries()) {
+    if (session?.userId === userId) {
+      activeSessions.delete(token);
+      removedCount += 1;
+    }
+  }
+
+  if (removedCount > 0) {
+    persistSessions();
+  }
+  return removedCount;
+}
+
 export { activeSessions };

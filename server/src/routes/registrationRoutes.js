@@ -134,7 +134,6 @@ const registerInstitutionSchema = z.object({
   employees: z
     .array(
       z.object({
-        leaderCode: z.string().max(40).optional().or(z.literal('')),
         fullName: z.string().min(4).max(140),
         nationalId: nationalIdSchema,
         positionTitle: z.string().min(2).max(120),
@@ -169,10 +168,14 @@ const createInstitutionStaffSchema = z
     password: passwordSchema.optional().or(z.literal('')),
     positionTitle: z.string().min(2).max(120),
     positionKinyarwanda: z.string().max(180).optional().or(z.literal('')),
+    departmentId: z.string().max(80).optional().or(z.literal('')),
     reportsTo: z.string().max(140).optional().or(z.literal('')),
     description: z.string().max(1000).optional().or(z.literal('')),
     status: z.enum(['Active', 'Inactive']).default('Active'),
-    createPlatformAccount: z.boolean().default(true),
+    // Staff are registered so citizens can see who works here and how to reach
+    // them — they never receive service requests through the platform, so a
+    // login account is the exception, not the default.
+    createPlatformAccount: z.boolean().default(false),
   })
   .superRefine((payload, context) => {
     if (payload.createPlatformAccount) {
@@ -656,56 +659,24 @@ function validateLocationByLevel(level, rawLocation) {
     errors.push('District must belong to the selected province.');
   }
 
-  const registeredSectors = location.district
-    ? getRegisteredSectors(location.province, location.district)
-    : [];
-  const hasSectorCatalog =
-    (districtEntry && districtEntry.sectors.length > 0) || registeredSectors.length > 0;
+  // Only the province and district lists are complete for the whole country.
+  // Rwanda has 416 sectors, 2,148 cells and roughly 14,800 villages, and this
+  // platform only ships a few of them as samples — so those three are accepted
+  // exactly as the person typed them. Rejecting a real sector just because it is
+  // missing from a sample list would lock citizens out of their own area.
   const sectorEntry = location.sector
     ? getSectorEntry(location.province, location.district, location.sector)
     : null;
-  const hasRegisteredSector = location.sector
-    ? hasRegisteredInstitutionAtLevel('sector', location)
-    : false;
-  if (hasSectorCatalog && location.sector && !sectorEntry && !hasRegisteredSector) {
-    errors.push('Sector must belong to the selected district.');
-  }
-
-  const registeredCells = location.sector
-    ? getRegisteredCells(location.province, location.district, location.sector)
-    : [];
-  const hasCellCatalog = (sectorEntry && sectorEntry.cells.length > 0) || registeredCells.length > 0;
   const cellEntry = location.cell
     ? getCellEntry(location.province, location.district, location.sector, location.cell)
     : null;
-  const hasRegisteredCell = location.cell ? hasRegisteredInstitutionAtLevel('cell', location) : false;
-  if (hasCellCatalog && location.cell && !cellEntry && !hasRegisteredCell) {
-    errors.push('Cell must belong to the selected sector.');
-  }
-
-  if (location.village) {
-    const registeredVillages = getRegisteredVillages(
-      location.province,
-      location.district,
-      location.sector,
-      location.cell,
-    );
-    const hasVillageCatalog =
-      (cellEntry && cellEntry.villages.length > 0) || registeredVillages.length > 0;
-    const hasVillageInStatic = cellEntry ? cellEntry.villages.includes(location.village) : false;
-    const hasVillageInRegistered = hasRegisteredInstitutionAtLevel('village', location);
-
-    if (hasVillageCatalog && !hasVillageInStatic && !hasVillageInRegistered) {
-      errors.push('Village must belong to the selected cell.');
-    }
-  }
 
   return {
     location,
     errors,
     catalogs: {
-      hasSectorCatalog,
-      hasCellCatalog,
+      hasSectorCatalog: Boolean(sectorEntry),
+      hasCellCatalog: Boolean(cellEntry),
     },
   };
 }
@@ -812,6 +783,22 @@ function generateId(prefix, count) {
 
 function getAccessKeyForNewLeader(level) {
   return `CF-${LEVEL_PREFIX[level]}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+// A staff code always derives from the institution the person works in (e.g.
+// CEL-0007-03 for the third staff member of that cell office), so it is never
+// typed in by hand and never carries another body's identifier.
+function findDepartmentInInstitution(institution, departmentId) {
+  return institutionDepartments.find(
+    (entry) =>
+      entry.institutionId === institution.institutionId && entry.departmentId === departmentId,
+  );
+}
+
+function buildStaffCode(institutionId) {
+  const position =
+    institutionEmployees.filter((entry) => entry.institutionId === institutionId).length + 1;
+  return `${institutionId}-${String(position).padStart(2, '0')}`;
 }
 
 function getInviteByToken(token) {
@@ -950,6 +937,26 @@ function findInstitutionPlatformUser(employee) {
 }
 
 function buildInstitutionManagementItem(institution) {
+  // Seeded staff predate automatic staff codes, so fill theirs in from their
+  // position in this institution's own list — the code always identifies the
+  // institution the person works in, never an outside body.
+  const staffCodeByEmployeeId = new Map();
+  institutionEmployees
+    .filter((entry) => entry.institutionId === institution.institutionId)
+    .forEach((entry, index) => {
+      staffCodeByEmployeeId.set(
+        entry.employeeId,
+        entry.leaderCode ?? `${institution.institutionId}-${String(index + 1).padStart(2, '0')}`,
+      );
+    });
+
+  const departments = institutionDepartments.filter(
+    (entry) => entry.institutionId === institution.institutionId,
+  );
+  const departmentNameById = new Map(
+    departments.map((entry) => [entry.departmentId, entry.name]),
+  );
+
   const employees = institutionEmployees
     .filter((entry) => entry.institutionId === institution.institutionId)
     .slice()
@@ -965,12 +972,17 @@ function buildInstitutionManagementItem(institution) {
 
       return {
         employeeId: employee.employeeId,
+        staffCode: staffCodeByEmployeeId.get(employee.employeeId) ?? null,
         fullName: employee.fullName,
         nationalId: employee.nationalId,
         phone: employee.phone,
         email: employee.email ?? null,
         positionTitle: employee.positionTitle,
         positionKinyarwanda: employee.positionKinyarwanda ?? null,
+        departmentId: employee.departmentId ?? null,
+        departmentName: employee.departmentId
+          ? departmentNameById.get(employee.departmentId) ?? null
+          : null,
         reportsTo: employee.reportsTo ?? null,
         description: employee.description ?? null,
         status: employee.status,
@@ -1017,9 +1029,16 @@ function buildInstitutionManagementItem(institution) {
     officialPhone: institution.officialPhone ?? '',
     officeAddress: institution.officeAddress ?? '',
     services: institution.services ?? [],
-    departments: institutionDepartments.filter(
-      (entry) => entry.institutionId === institution.institutionId,
-    ),
+    departments: departments.map((entry) => ({
+      ...entry,
+      staff: employees
+        .filter((member) => member.departmentId === entry.departmentId)
+        .map((member) => ({
+          employeeId: member.employeeId,
+          fullName: member.fullName,
+          positionTitle: member.positionTitle,
+        })),
+    })),
     staffServiceLinks,
     employees,
     employeeCount: employees.length,
@@ -1547,18 +1566,29 @@ router.post('/invites', async (request, response, next) => {
 
     if (inviteRecord.contactEmail) {
       const qrImageUrl = `${getClientBaseUrl()}/api/registration/invites/${inviteRecord.token}/qr.png`;
-      sendEmailInBackground(
-        inviteRecord.contactEmail,
-        templates.inviteCreated({
+      const qrCid = `invite-qr-${inviteRecord.inviteId}`;
+      sendEmailInBackground(inviteRecord.contactEmail, {
+        ...templates.inviteCreated({
           recipientName: inviteRecord.institutionNameHint,
           institutionName: inviteRecord.institutionNameHint,
           targetLevel: inviteRecord.targetLevel,
           registrationLink: inviteRecord.registrationLink,
           qrImageUrl,
+          qrCid,
+          loginLink: `${getClientBaseUrl()}/login`,
           expiresAt: new Date(inviteRecord.expiresAt).toLocaleString('en-US'),
           location: formatLocationForEmail(inviteRecord.location),
         }),
-      );
+        // Sent inline so the QR renders even when this server is not publicly
+        // reachable; the hosted qr.png URL stays available as a stable link.
+        attachments: [
+          {
+            filename: 'saccfp-invite-qr.png',
+            contentBase64: inviteRecord.qrCodeDataUrl.replace(/^data:image\/png;base64,/, ''),
+            cid: qrCid,
+          },
+        ],
+      });
     }
 
     return response.status(201).json({
@@ -1630,36 +1660,25 @@ async function registerInstitutionFromInvite(inviteToken, payload) {
     };
   }
 
-  const parentInstitutionId =
+  // Every institution registers independently. A parent is recorded only when
+  // the invite points at one that actually exists at the correct level — it is
+  // never required, so registration can never be blocked by a missing, deleted,
+  // or mismatched institution above it.
+  const invitedParentId =
     invite.parentInstitutionId ??
     (['national_admin', 'oversight_admin'].includes(invite.createdByRole)
       ? NATIONAL_ROOT_ID
       : null);
-  const parentInstitution =
-    parentInstitutionId && parentInstitutionId !== NATIONAL_ROOT_ID
-      ? findInstitutionById(parentInstitutionId)
+  const invitedParent =
+    invitedParentId && invitedParentId !== NATIONAL_ROOT_ID
+      ? findInstitutionById(invitedParentId)
       : null;
+  const parentIsUsable =
+    invitedParentId === NATIONAL_ROOT_ID ||
+    (invitedParent && getNextLevelForLevel(invitedParent.level) === level);
 
-  if (level !== 'province' && !parentInstitutionId) {
-    return {
-      status: 400,
-      body: {
-        message:
-          'Invite relationship is invalid. Non-province registrations require a parent institution.',
-      },
-    };
-  }
-
-  if (parentInstitutionId && parentInstitutionId !== NATIONAL_ROOT_ID && !parentInstitution) {
-    return {
-      status: 400,
-      body: { message: 'Parent institution was not found for this invite chain.' },
-    };
-  }
-
-  if (parentInstitution && getNextLevelForLevel(parentInstitution.level) !== level) {
-    return { status: 400, body: { message: 'Invite chain is inconsistent with hierarchy levels.' } };
-  }
+  const parentInstitutionId = parentIsUsable ? invitedParentId : null;
+  const parentInstitution = parentIsUsable ? invitedParent : null;
 
   const duplicateInstitution = registeredInstitutions.find(
     (entry) => entry.level === level && isSameScopeForLevel(level, entry.location, location),
@@ -1740,6 +1759,7 @@ async function registerInstitutionFromInvite(inviteToken, payload) {
   const leaderEmployeeRecord = {
     employeeId: generateId('EMP', institutionEmployees.length),
     institutionId,
+    leaderCode: buildStaffCode(institutionId),
     fullName: payload.leader.fullName,
     nationalId: payload.leader.nationalId,
     phone: payload.leader.phone,
@@ -1768,7 +1788,7 @@ async function registerInstitutionFromInvite(inviteToken, payload) {
     institutionEmployees.push({
       employeeId: generateId('EMP', institutionEmployees.length),
       institutionId,
-      leaderCode: employee.leaderCode || null,
+      leaderCode: buildStaffCode(institutionId),
       fullName: employee.fullName,
       nationalId: employee.nationalId,
       phone: employee.phone,
@@ -2282,6 +2302,12 @@ router.post('/institutions/:institutionId/employees', (request, response) => {
     });
   }
 
+  if (payload.departmentId && !findDepartmentInInstitution(institution, payload.departmentId)) {
+    return response.status(400).json({
+      message: 'That department does not belong to this institution.',
+    });
+  }
+
   if (payload.createPlatformAccount && isEmailAlreadyInUse(payload.email)) {
     return response.status(409).json({
       message: 'This email is already in use by another platform account.',
@@ -2291,7 +2317,8 @@ router.post('/institutions/:institutionId/employees', (request, response) => {
   const employee = {
     employeeId: generateId('EMP', institutionEmployees.length),
     institutionId: institution.institutionId,
-    leaderCode: null,
+    leaderCode: buildStaffCode(institution.institutionId),
+    departmentId: payload.departmentId || null,
     fullName: payload.fullName,
     nationalId: payload.nationalId,
     phone: payload.phone,
@@ -2416,6 +2443,7 @@ const updateInstitutionStaffSchema = z.object({
   email: emailSchema.optional().or(z.literal('')),
   positionTitle: z.string().min(2).max(120).optional(),
   positionKinyarwanda: z.string().max(180).optional().or(z.literal('')),
+  departmentId: z.string().max(80).optional().or(z.literal('')),
   reportsTo: z.string().max(140).optional().or(z.literal('')),
   description: z.string().max(1000).optional().or(z.literal('')),
   status: z.enum(['Active', 'Inactive']).optional(),
@@ -2733,6 +2761,17 @@ router.delete('/institutions/:institutionId/departments/:departmentId', (request
   }
 
   const [removedDepartment] = institutionDepartments.splice(departmentIndex, 1);
+
+  // Staff outlive their department: they are simply unassigned, never deleted.
+  for (const employee of institutionEmployees) {
+    if (
+      employee.institutionId === institution.institutionId &&
+      employee.departmentId === removedDepartment.departmentId
+    ) {
+      employee.departmentId = null;
+    }
+  }
+
   institution.updatedAt = new Date().toISOString();
 
   return response.json({
@@ -2802,6 +2841,14 @@ router.patch('/institutions/:institutionId/employees/:employeeId', (request, res
   }
   if (payload.positionKinyarwanda !== undefined) {
     employee.positionKinyarwanda = payload.positionKinyarwanda || null;
+  }
+  if (payload.departmentId !== undefined) {
+    if (payload.departmentId && !findDepartmentInInstitution(institution, payload.departmentId)) {
+      return response.status(400).json({
+        message: 'That department does not belong to this institution.',
+      });
+    }
+    employee.departmentId = payload.departmentId || null;
   }
   if (payload.reportsTo !== undefined) {
     employee.reportsTo = payload.reportsTo || null;
@@ -3022,12 +3069,18 @@ router.delete('/institutions/:institutionId', (request, response) => {
     });
   }
 
+  // Every institution stands on its own: deleting one never deletes or blocks
+  // the units below it. Any children are detached and keep operating
+  // independently (re-parented to this institution's own parent when there is
+  // one, otherwise left with no parent at all).
   const children = getChildrenInstitutions(institution.institutionId);
-  if (children.length > 0) {
-    return response.status(409).json({
-      message:
-        'This institution still has registered child units. Delete or move them before deleting it.',
-    });
+  const detachedParentId =
+    institution.parentInstitutionId && institution.parentInstitutionId !== institution.institutionId
+      ? institution.parentInstitutionId
+      : null;
+  for (const child of children) {
+    child.parentInstitutionId = detachedParentId;
+    child.updatedAt = new Date().toISOString();
   }
 
   for (let index = institutionEmployees.length - 1; index >= 0; index -= 1) {
@@ -3058,10 +3111,11 @@ router.delete('/institutions/:institutionId', (request, response) => {
 
   const parent = findInstitutionById(removedInstitution.parentInstitutionId);
   if (parent) {
-    parent.childInstitutionIds = (parent.childInstitutionIds ?? []).filter(
-      (entry) => entry !== removedInstitution.institutionId,
+    const childIds = getChildrenInstitutions(parent.institutionId).map(
+      (entry) => entry.institutionId,
     );
-    parent.registeredChildUnits = getChildrenInstitutions(parent.institutionId).length;
+    parent.childInstitutionIds = childIds;
+    parent.registeredChildUnits = childIds.length;
     parent.updatedAt = new Date().toISOString();
   }
 
@@ -3072,6 +3126,10 @@ router.delete('/institutions/:institutionId', (request, response) => {
       institutionName: removedInstitution.institutionName,
       slug: removedInstitution.slug,
     },
+    detachedChildInstitutions: children.map((child) => ({
+      institutionId: child.institutionId,
+      institutionName: child.institutionName,
+    })),
   });
 });
 

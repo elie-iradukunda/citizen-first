@@ -21,6 +21,26 @@ export function loginWithCredentials(credentials) {
   });
 }
 
+export function requestPasswordReset(email) {
+  return request('/api/auth/forgot-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function submitPasswordReset({ token, password }) {
+  return request('/api/auth/reset-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token, password }),
+  });
+}
+
 export function fetchCurrentUser(token) {
   return request('/api/auth/me', {
     headers: {

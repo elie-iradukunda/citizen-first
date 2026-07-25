@@ -5,6 +5,7 @@ client/dist/
 
 server/.env
 server/.sessions.json
+server/.data-snapshot.json
 *.log
 tmp_pdf_extract/
 client/public/research-book/

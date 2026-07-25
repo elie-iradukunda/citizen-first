@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ShieldCheck, Lock } from 'lucide-react';
+import { ShieldCheck, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getRoleDashboardPath } from '../lib/authRouting';
 
@@ -43,6 +43,7 @@ function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -137,16 +138,36 @@ function LoginPage() {
 
               <label className="block">
                 <span className="field-label">Password</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="app-input"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    className="app-input pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 transition hover:text-brand-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </label>
+
+              <div className="flex justify-end">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-semibold text-brand-600 transition hover:text-brand-500"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {error ? (

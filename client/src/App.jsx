@@ -12,6 +12,8 @@ import HomePage from './pages/HomePage';
 import InstitutionInvitePage from './pages/InstitutionInvitePage';
 import InstitutionActivationPage from './pages/InstitutionActivationPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import PublicInstitutionAccessPage from './pages/PublicInstitutionAccessPage';
 import PublicServicesPage from './pages/PublicServicesPage';
 import ReportPage from './pages/ReportPage';
@@ -66,6 +68,8 @@ function App() {
     <Suspense fallback={<RouteLoader />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />

@@ -65,16 +65,27 @@ export const templates = {
     targetLevel,
     registrationLink,
     qrImageUrl,
+    qrCid,
+    loginLink,
     expiresAt,
     location,
   }) {
-    const qrBlock = qrImageUrl
+    // Prefer the inline (cid) image: a hosted URL only resolves when the server
+    // issuing the invite is publicly reachable, which is never true in local dev.
+    const qrSource = qrCid ? `cid:${qrCid}` : qrImageUrl;
+    const qrBlock = qrSource
       ? `
         <p style="margin:18px 0 6px;font-size:13px;color:#64748b;">Or scan this QR code with your phone to activate:</p>
         <p style="margin:0 0 4px;">
-          <img src="${escapeHtml(qrImageUrl)}" alt="Activation QR code" width="200" height="200"
+          <img src="${escapeHtml(qrSource)}" alt="Activation QR code" width="200" height="200"
             style="width:200px;height:200px;border:1px solid #dbe3ee;border-radius:12px;background:#ffffff;padding:8px;" />
         </p>`
+      : '';
+
+    const loginBlock = loginLink
+      ? paragraph(
+          `Already activated this invite? <a href="${escapeHtml(loginLink)}" style="color:#087536;font-weight:700;">Sign in to SACCFP</a> with the email and password you set.`,
+        )
       : '';
 
     return {
@@ -93,6 +104,7 @@ export const templates = {
           ]) +
           linkButton(registrationLink, 'Activate & set password') +
           qrBlock +
+          loginBlock +
           paragraph('Use this link only for the authorized institution leader.'),
       ),
     };
@@ -112,6 +124,42 @@ export const templates = {
             ['Public page', publicUrl],
           ]) +
           linkButton(mailConfig.appUrl, 'Open SACCFP'),
+      ),
+    };
+  },
+
+  complaintProgress({ fullName, caseId, reviewerName, note }) {
+    return {
+      subject: `SACCFP case ${caseId} is under investigation`,
+      html: shell(
+        'Your report is being followed up',
+        paragraph(`Hello ${escapeHtml(firstName(fullName))},`) +
+          paragraph('Your report has been picked up and is now under investigation.') +
+          rows([
+            ['Case ID', caseId],
+            ['Handled by', reviewerName],
+            ['Status', 'Under investigation'],
+          ]) +
+          paragraph(escapeHtml(note)) +
+          linkButton(`${mailConfig.appUrl}/dashboard/citizen/track?caseId=${caseId}`, 'Track this case'),
+      ),
+    };
+  },
+
+  passwordReset({ fullName, resetLink, expiresAt }) {
+    return {
+      subject: 'Reset your SACCFP password',
+      html: shell(
+        'Reset your password',
+        paragraph(`Hello ${escapeHtml(firstName(fullName))},`) +
+          paragraph(
+            'We received a request to reset the password for your SACCFP account. Choose a new password using the button below.',
+          ) +
+          linkButton(resetLink, 'Set a new password') +
+          rows([['Link expires', expiresAt]]) +
+          paragraph(
+            'If you did not ask for this, you can ignore this email — your current password stays active and nobody can use this link without your inbox.',
+          ),
       ),
     };
   },

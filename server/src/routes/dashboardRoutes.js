@@ -45,9 +45,26 @@ const OFFICER_DASHBOARD_ROLES = new Set([
   'village_leader',
 ]);
 const ADMIN_DASHBOARD_ROLES = new Set(['national_admin', 'oversight_admin']);
-const CORRUPTION_CATEGORIES = new Set(['Bribery request', 'Unknown service fee']);
-const ABUSE_CATEGORIES = new Set(['Abuse of authority']);
-const FOLLOW_UP_CATEGORIES = new Set(['Missing response']);
+// Both the seeded short labels and the labels the citizen form actually submits.
+// Without the newer ones a bribery report was classified as "Service delivery",
+// which hid real corruption cases from RIB's own analytics.
+const CORRUPTION_CATEGORIES = new Set([
+  'Bribery request',
+  'Unknown service fee',
+  'Bribery or unofficial payment request',
+  'Unofficial or unknown service fee',
+]);
+const ABUSE_CATEGORIES = new Set([
+  'Abuse of authority',
+  'Abuse of authority (abuse of office)',
+  'Intimidation after refusing corruption',
+]);
+const FOLLOW_UP_CATEGORIES = new Set([
+  'Missing response',
+  'Unclear procedure or delayed service',
+  'Poor service or refusal to serve',
+  'Staff misconduct during service delivery',
+]);
 const CITIZEN_ISSUE_TYPES = ['service_issue', 'corruption_issue'];
 const NEXT_LEVEL_BY_ROLE = {
   national_admin: 'province',
@@ -190,6 +207,12 @@ function getInstitutionName(id) {
     return registeredInstitution.institutionName;
   }
 
+  // RIB national review is a platform-level destination rather than a
+  // registered institution, so it has no entry in either list above.
+  if (id === 'RIB-NATIONAL') {
+    return 'RIB National Oversight Command';
+  }
+
   return 'Unknown institution';
 }
 
@@ -278,6 +301,17 @@ function getInstitutionAnalyticsMetadata(institutionId) {
       institution: registeredInstitution.institutionName,
       level: registeredInstitution.level,
       location: registeredInstitution.location ?? {},
+    };
+  }
+
+  // RIB national review holds cases that belong to no registered office, such
+  // as reports about people who are not public servants.
+  if (institutionId === 'RIB-NATIONAL') {
+    return {
+      institutionId,
+      institution: 'RIB National Oversight Command',
+      level: 'national',
+      location: { country: 'Rwanda' },
     };
   }
 
@@ -618,6 +652,23 @@ const citizenComplaintSubmissionSchema = z
     serviceName: z.string().trim().max(160).optional(),
     targetLeaderEmployeeId: z.string().min(4).optional(),
     accusedLeaderEmployeeIds: z.array(z.string().min(4)).max(5).optional(),
+    // Manual reports: corruption also happens away from a government desk, by
+    // people who hold no registered post. There is no QR code and no employee
+    // record to point at, so the person is described in free text instead and
+    // the case goes straight to RIB.
+    reportedPersonName: z.string().trim().min(3).max(140).optional(),
+    reportedPersonRole: z.string().trim().max(160).optional(),
+    incidentLocation: z.string().trim().max(200).optional(),
+    // Tracing details. Nothing here is required — a citizen may only know some
+    // of it — but a phone number, a MoMo number, or a witness is usually what
+    // lets RIB identify someone who holds no public post.
+    reportedPersonPhone: z.string().trim().max(30).optional(),
+    reportedPersonDescription: z.string().trim().max(500).optional(),
+    incidentDate: z.string().trim().max(30).optional(),
+    amountRequestedRwf: z.number().int().min(0).max(100_000_000).optional(),
+    moneyPaid: z.enum(['paid', 'not_paid', 'unknown']).optional(),
+    paymentChannel: z.string().trim().max(160).optional(),
+    witnessDetails: z.string().trim().max(300).optional(),
     evidenceImage: citizenComplaintImageSchema.optional(),
     evidenceDocument: citizenComplaintDocumentSchema.optional(),
     voiceNote: citizenVoiceNoteSchema.optional(),
@@ -633,11 +684,14 @@ const citizenComplaintSubmissionSchema = z
 
     if (
       payload.issueType === 'corruption_issue' &&
-      (!Array.isArray(payload.accusedLeaderEmployeeIds) || payload.accusedLeaderEmployeeIds.length === 0)
+      (!Array.isArray(payload.accusedLeaderEmployeeIds) ||
+        payload.accusedLeaderEmployeeIds.length === 0) &&
+      !payload.reportedPersonName
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Select at least one leader being reported for corruption.',
+        message:
+          'Select the official being reported, or name the person if they are not registered staff.',
         path: ['accusedLeaderEmployeeIds'],
       });
     }
@@ -1034,9 +1088,21 @@ function buildComplaintSummary(item) {
     submittedVia: item.submittedVia ?? 'dashboard',
     response: item.response ?? null,
     responses: item.responses ?? [],
+    progressNotes: item.progressNotes ?? [],
+    reviewStartedAt: item.reviewStartedAt ?? null,
     feedbackStatus: item.feedbackStatus ?? null,
     reporterProfile: item.reporterProfile ?? null,
     accusedLeaders: item.accusedLeaders ?? [],
+    reportedPersonName: item.reportedPersonName ?? null,
+    reportedPersonRole: item.reportedPersonRole ?? null,
+    incidentLocation: item.incidentLocation ?? null,
+    reportedPersonPhone: item.reportedPersonPhone ?? null,
+    reportedPersonDescription: item.reportedPersonDescription ?? null,
+    incidentDate: item.incidentDate ?? null,
+    amountRequestedRwf: item.amountRequestedRwf ?? null,
+    moneyPaid: item.moneyPaid ?? null,
+    paymentChannel: item.paymentChannel ?? null,
+    witnessDetails: item.witnessDetails ?? null,
     evidenceImage: item.evidenceImage ?? null,
     evidenceDocument: item.evidenceDocument ?? null,
     voiceNote: item.voiceNote ?? null,
@@ -2139,6 +2205,26 @@ function buildAdminDashboard() {
         submittedAt: item.submittedAt,
         updatedAt: item.updatedAt,
         deadlineAt: item.deadlineAt,
+        message: item.message ?? null,
+        // Evidence is the whole point of a corruption report, so RIB oversight
+        // must be able to open it from the case view, not only the officer queue.
+        evidenceImage: item.evidenceImage ?? null,
+        evidenceDocument: item.evidenceDocument ?? null,
+        voiceNote: item.voiceNote ?? null,
+        response: item.response ?? null,
+        progressNotes: item.progressNotes ?? [],
+        // Present only on reports about someone who holds no public post, which
+        // is exactly when RIB has nothing else to trace them by.
+        reportedPersonName: item.reportedPersonName ?? null,
+        reportedPersonRole: item.reportedPersonRole ?? null,
+        reportedPersonPhone: item.reportedPersonPhone ?? null,
+        reportedPersonDescription: item.reportedPersonDescription ?? null,
+        incidentLocation: item.incidentLocation ?? null,
+        incidentDate: item.incidentDate ?? null,
+        amountRequestedRwf: item.amountRequestedRwf ?? null,
+        moneyPaid: item.moneyPaid ?? null,
+        paymentChannel: item.paymentChannel ?? null,
+        witnessDetails: item.witnessDetails ?? null,
       };
     });
 
@@ -2483,13 +2569,26 @@ router.post('/citizen/complaints', (request, response) => {
       });
     }
 
-    const reviewLevel = getReviewLevelForAccusedLeaders(accusedLeaderEntries);
-    destination = getDestinationForLevel(reviewLevel, citizenLocation, context.leaderChain ?? []);
+    if (accusedLeaderEntries.length === 0) {
+      // Nobody registered was named, so there is no leadership ladder to climb:
+      // RIB national review takes the case directly.
+      destination = buildNationalReviewDestination();
 
-    if (!reviewLevel || !destination?.leader?.employeeId) {
-      return response.status(400).json({
-        message: 'We could not find the correct next review office for the selected corruption report.',
-      });
+      if (!destination?.leader?.employeeId) {
+        return response.status(503).json({
+          message: 'RIB national review is not available to receive this report right now.',
+        });
+      }
+    } else {
+      const reviewLevel = getReviewLevelForAccusedLeaders(accusedLeaderEntries);
+      destination = getDestinationForLevel(reviewLevel, citizenLocation, context.leaderChain ?? []);
+
+      if (!reviewLevel || !destination?.leader?.employeeId) {
+        return response.status(400).json({
+          message:
+            'We could not find the correct next review office for the selected corruption report.',
+        });
+      }
     }
   }
 
@@ -2523,6 +2622,16 @@ router.post('/citizen/complaints', (request, response) => {
     taggedLeaderEmployeeIds: [destination.leader.employeeId],
     accusedLeaderEmployeeIds: payload.accusedLeaderEmployeeIds ?? [],
     accusedLeaders: accusedLeaderEntries.map((entry) => serializeLeaderChainEntry(entry)),
+    reportedPersonName: payload.reportedPersonName ?? null,
+    reportedPersonRole: payload.reportedPersonRole ?? null,
+    incidentLocation: payload.incidentLocation ?? null,
+    reportedPersonPhone: payload.reportedPersonPhone ?? null,
+    reportedPersonDescription: payload.reportedPersonDescription ?? null,
+    incidentDate: payload.incidentDate ?? null,
+    amountRequestedRwf: payload.amountRequestedRwf ?? null,
+    moneyPaid: payload.moneyPaid ?? null,
+    paymentChannel: payload.paymentChannel ?? null,
+    witnessDetails: payload.witnessDetails ?? null,
     evidenceImage: payload.evidenceImage ?? null,
     evidenceDocument: payload.evidenceDocument ?? null,
     voiceNote: payload.voiceNote ?? null,
@@ -2786,6 +2895,74 @@ router.post('/officer/complaints/:complaintId/respond', (request, response) => {
 
   return response.json({
     message: 'Citizen feedback recorded successfully.',
+    item: buildComplaintSummary(complaint),
+  });
+});
+
+const complaintProgressSchema = z.object({
+  note: z.string().trim().min(5).max(600).optional(),
+});
+
+// Between "submitted" and an official answer a case can sit for days. This lets
+// the reviewer put it into investigation so the citizen can see, on their own
+// Track Case page, that somebody has actually picked it up.
+router.post('/officer/complaints/:complaintId/start-review', (request, response) => {
+  const role = request.auth.user.role;
+  if (!OFFICER_DASHBOARD_ROLES.has(role) && !ADMIN_DASHBOARD_ROLES.has(role)) {
+    return response.status(403).json({
+      message: 'Only governance review accounts can update a citizen complaint.',
+    });
+  }
+
+  const parseResult = complaintProgressSchema.safeParse(request.body ?? {});
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Invalid progress note.',
+      errors: parseResult.error.flatten(),
+    });
+  }
+
+  const complaint = complaints.find((item) => item.id === request.params.complaintId);
+  if (!complaint) {
+    return response.status(404).json({ message: 'Complaint not found.' });
+  }
+
+  if (complaint.status === 'resolved') {
+    return response.status(409).json({ message: 'This case is already resolved.' });
+  }
+
+  const now = new Date();
+  const reviewerEmployee = findInstitutionEmployeeByUser(request.auth.user);
+  const reviewerName =
+    reviewerEmployee?.fullName ?? request.auth.user.fullName ?? 'Assigned reviewer';
+
+  complaint.status = 'in_review';
+  complaint.updatedAt = now.toISOString();
+  complaint.reviewStartedAt = complaint.reviewStartedAt ?? now.toISOString();
+  complaint.progressNotes = [
+    ...(complaint.progressNotes ?? []),
+    {
+      note: parseResult.data.note ?? 'Investigation started.',
+      addedAt: now.toISOString(),
+      addedByName: reviewerName,
+      level: complaint.currentLevel,
+    },
+  ];
+
+  if (complaint.reporterProfile?.email) {
+    sendEmailInBackground(
+      complaint.reporterProfile.email,
+      templates.complaintProgress({
+        fullName: complaint.reporterProfile.fullName,
+        caseId: complaint.id,
+        reviewerName,
+        note: parseResult.data.note ?? 'Your report is now under investigation.',
+      }),
+    );
+  }
+
+  return response.json({
+    message: 'Case marked as under investigation.',
     item: buildComplaintSummary(complaint),
   });
 });

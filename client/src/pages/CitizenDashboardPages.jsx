@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react';
+import QrScanPanel from '../components/QrScanPanel';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
 import CaseChat from '../components/dashboard/CaseChat';
 import {
@@ -36,52 +37,11 @@ const scannedInstitutionFallback = {
   responseWindow: '3 working days',
 };
 
-const officeServicesFallback = [
-  {
-    id: 'civil-status',
-    name: 'Civil status certificate support',
-    department: 'Civil Status Department',
-    staffName: 'Agnes Mukamana',
-    staffTitle: 'Civil Status Officer',
-    schedule: 'Monday to Friday, 08:00 - 15:00',
-    fee: 'Official fee only, receipt required',
-    documents: 'National ID, application reference, payment receipt where required',
-    description: 'Citizen receives guidance for certificates and record requests.',
-  },
-  {
-    id: 'land-documents',
-    name: 'Land document guidance',
-    department: 'Land and Infrastructure Department',
-    staffName: 'Jean Bosco Ndayisenga',
-    staffTitle: 'Land Service Officer',
-    schedule: 'Tuesday and Thursday, 09:00 - 14:00',
-    fee: 'No unofficial payment allowed',
-    documents: 'Land reference, owner ID, supporting document copy',
-    description: 'Citizen receives direction on land-related documents and office process.',
-  },
-  {
-    id: 'social-affairs',
-    name: 'Social affairs and Mutuelle support',
-    department: 'Social Affairs Department',
-    staffName: 'Claudine Uwase',
-    staffTitle: 'Social Affairs Officer',
-    schedule: 'Monday, Wednesday, Friday, 08:00 - 12:00',
-    fee: 'Free guidance service',
-    documents: 'Household ID, Ubudehe or insurance reference where available',
-    description: 'Citizen receives social affairs and Mutuelle support guidance.',
-  },
-  {
-    id: 'customer-care',
-    name: 'Citizen complaint reception',
-    department: 'Customer Care Desk',
-    staffName: 'Patrick Habimana',
-    staffTitle: 'Customer Care Officer',
-    schedule: 'Every working day, 08:00 - 16:00',
-    fee: 'Free service',
-    documents: 'Case explanation, service reference, evidence where available',
-    description: 'Citizen can report poor service or request guidance before RIB escalation.',
-  },
-];
+const MONEY_PAID_LABELS = {
+  paid: 'Yes, I paid',
+  not_paid: 'No, I refused',
+  unknown: 'I prefer not to say',
+};
 
 const ribReviewFallbacks = [
   {
@@ -594,7 +554,7 @@ export function CitizenDashboardHomePage() {
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
         {[
-          ['Visible services', context?.summary?.services ?? officeServicesFallback.length],
+          ['Visible services', context?.summary?.services ?? 0],
           ['Visible review offices', context?.summary?.leaders ?? 0],
           ['Response rule', '3 working days'],
         ].map(([label, value]) => (
@@ -613,7 +573,7 @@ export function CitizenDashboardHomePage() {
 /* ------------------------------------------------------------------ */
 
 export function CitizenScanServicesPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const institutionSlug = searchParams.get('institution') ?? '';
   const { context, isLoading, error } = useCitizenData(institutionSlug);
   const [searchTerm, setSearchTerm] = useState('');
@@ -680,9 +640,9 @@ export function CitizenScanServicesPage() {
       helpLeader: service.helpLeader ?? null,
     }));
 
-    return realServices.length > 0
-      ? realServices
-      : officeServicesFallback.map((service) => ({ ...service, feeType: 'free' }));
+    // No sample services here: an institution with nothing registered must show
+    // an empty directory rather than another office's service list.
+    return realServices;
   }, [context]);
 
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -727,6 +687,21 @@ export function CitizenScanServicesPage() {
 
   const servicesPaging = usePaged(filteredServices, 5);
   const leadersPaging = usePaged(filteredLeaders, 5);
+
+  // Until a QR code is scanned there is no institution to describe, so the page
+  // is the scanner and nothing else.
+  if (!institutionSlug) {
+    return (
+      <PageShell>
+        <PageHeader
+          eyebrow="Scan QR & Services"
+          title="Scan an institution QR code"
+          description="Scan the QR code of any registered institution to see its official services, fees, schedules, and responsible staff."
+        />
+        <QrScanPanel onSlug={(slug) => setSearchParams({ institution: slug })} />
+      </PageShell>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1017,14 +992,333 @@ export function CitizenScanServicesPage() {
 /* 3. Submit Report                                                    */
 /* ------------------------------------------------------------------ */
 
+// Corruption is not limited to a government desk: a citizen can be asked for a
+// bribe by someone who holds no registered post and has no QR code. This form
+// carries those reports — the person is described in words — straight to RIB.
+function ManualCorruptionReportForm({ onBack }) {
+  const [form, setForm] = useState({
+    category: issueCategories.corruption_issue[0],
+    reportedPersonName: '',
+    reportedPersonRole: '',
+    reportedPersonPhone: '',
+    reportedPersonDescription: '',
+    incidentLocation: '',
+    incidentDate: '',
+    amountRequestedRwf: '',
+    moneyPaid: 'not_paid',
+    paymentChannel: '',
+    witnessDetails: '',
+    reportingMode: 'verified',
+    message: '',
+  });
+  const [files, setFiles] = useState({ evidenceImage: null, evidenceDocument: null, voiceNote: null });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submittedCase, setSubmittedCase] = useState(null);
+
+  const selectClass =
+    'mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-300';
+  const labelClass = 'block text-xs font-bold text-slate-600';
+
+  const updateForm = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const updateFile = (event) => {
+    const { name, files: selectedFiles } = event.target;
+    setFiles((current) => ({ ...current, [name]: selectedFiles?.[0] ?? null }));
+  };
+
+  const submitManualReport = async (event) => {
+    event.preventDefault();
+    setSubmitError('');
+    setSubmittedCase(null);
+
+    if (!form.reportedPersonName.trim()) {
+      setSubmitError('Write the name of the person you are reporting, or how they are known.');
+      return;
+    }
+
+    if (form.message.trim().length < 20) {
+      setSubmitError('Please explain what happened in at least 20 characters.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const [evidenceImage, evidenceDocument, voiceNote] = await Promise.all([
+        buildFileEvidence(files.evidenceImage, 'image'),
+        buildFileEvidence(files.evidenceDocument, 'document'),
+        buildFileEvidence(files.voiceNote, 'voice'),
+      ]);
+
+      const response = await submitCitizenComplaint({
+        issueType: 'corruption_issue',
+        category: form.category,
+        reportingMode: form.reportingMode,
+        submittedVia: 'dashboard',
+        reportedPersonName: form.reportedPersonName.trim(),
+        reportedPersonRole: form.reportedPersonRole.trim() || undefined,
+        reportedPersonPhone: form.reportedPersonPhone.trim() || undefined,
+        reportedPersonDescription: form.reportedPersonDescription.trim() || undefined,
+        incidentLocation: form.incidentLocation.trim() || undefined,
+        incidentDate: form.incidentDate || undefined,
+        amountRequestedRwf: form.amountRequestedRwf ? Number(form.amountRequestedRwf) : undefined,
+        moneyPaid: form.moneyPaid || undefined,
+        paymentChannel: form.paymentChannel.trim() || undefined,
+        witnessDetails: form.witnessDetails.trim() || undefined,
+        message: [
+          form.message.trim(),
+          `Person reported: ${form.reportedPersonName.trim()}`,
+          form.reportedPersonRole.trim() ? `Where they work / their role: ${form.reportedPersonRole.trim()}` : '',
+          form.reportedPersonPhone.trim() ? `Their phone number: ${form.reportedPersonPhone.trim()}` : '',
+          form.reportedPersonDescription.trim() ? `How to recognise them: ${form.reportedPersonDescription.trim()}` : '',
+          form.incidentLocation.trim() ? `Where it happened: ${form.incidentLocation.trim()}` : '',
+          form.incidentDate ? `When it happened: ${form.incidentDate}` : '',
+          form.amountRequestedRwf ? `Amount asked for: ${Number(form.amountRequestedRwf).toLocaleString()} RWF` : '',
+          form.moneyPaid ? `Money handed over: ${MONEY_PAID_LABELS[form.moneyPaid]}` : '',
+          form.paymentChannel.trim() ? `How they asked to be paid: ${form.paymentChannel.trim()}` : '',
+          form.witnessDetails.trim() ? `Witness: ${form.witnessDetails.trim()}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        evidenceImage: evidenceImage ?? undefined,
+        evidenceDocument: evidenceDocument ?? undefined,
+        voiceNote: voiceNote ?? undefined,
+      });
+
+      setSubmittedCase(response.item);
+      setFiles({ evidenceImage: null, evidenceDocument: null, voiceNote: null });
+      setForm((current) => ({ ...current, message: '' }));
+    } catch (submitException) {
+      setSubmitError(submitException.message || 'Report submission failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+      <Card title="Reporting without a QR code" subtitle="Use this when the person is not at a government office.">
+        <p className="text-sm leading-7 text-slate-600">
+          Some bribery happens away from any office — a broker, an intermediary, or anyone who asks
+          you for money to obtain a public service. There is no QR code to scan for them, so describe
+          who they are and what they asked for.
+        </p>
+        <p className="mt-4 text-sm leading-7 text-slate-600">
+          The report goes directly to RIB national review with a case ID and the same three-day
+          response window. Attach any evidence you have — a photo, a receipt, a message, or a voice
+          note.
+        </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-5 rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+        >
+          Back to reporting options
+        </button>
+      </Card>
+
+      <Card title="Report form" subtitle="RIB receives this report directly.">
+        <form className="space-y-4" onSubmit={submitManualReport}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className={labelClass}>
+              Category
+              <select name="category" value={form.category} onChange={updateForm} className={selectClass}>
+                {issueCategories.corruption_issue.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={labelClass}>
+              Person being reported
+              <input
+                name="reportedPersonName"
+                value={form.reportedPersonName}
+                onChange={updateForm}
+                placeholder="Full name, or how the person is known"
+                className={selectClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Where they work or their role
+              <input
+                name="reportedPersonRole"
+                value={form.reportedPersonRole}
+                onChange={updateForm}
+                placeholder="e.g. broker at the district market, private agent"
+                className={selectClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Their phone number, if you know it
+              <input
+                name="reportedPersonPhone"
+                value={form.reportedPersonPhone}
+                onChange={updateForm}
+                placeholder="+250 7.. — this is what helps RIB find them"
+                className={selectClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Where it happened
+              <input
+                name="incidentLocation"
+                value={form.incidentLocation}
+                onChange={updateForm}
+                placeholder="Village, cell, sector, or the place name"
+                className={selectClass}
+              />
+            </label>
+            <label className={labelClass}>
+              When it happened
+              <input
+                name="incidentDate"
+                type="date"
+                value={form.incidentDate}
+                onChange={updateForm}
+                className={selectClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Amount asked for (RWF)
+              <input
+                name="amountRequestedRwf"
+                type="number"
+                min="0"
+                value={form.amountRequestedRwf}
+                onChange={updateForm}
+                placeholder="e.g. 50000"
+                className={selectClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Did you hand over the money?
+              <select name="moneyPaid" value={form.moneyPaid} onChange={updateForm} className={selectClass}>
+                <option value="not_paid">No, I refused</option>
+                <option value="paid">Yes, I paid</option>
+                <option value="unknown">I prefer not to say</option>
+              </select>
+            </label>
+            <label className={labelClass}>
+              How they asked to be paid
+              <input
+                name="paymentChannel"
+                value={form.paymentChannel}
+                onChange={updateForm}
+                placeholder="Cash, MoMo number, or bank account they gave you"
+                className={selectClass}
+              />
+            </label>
+          </div>
+
+          <label className={labelClass}>
+            How to recognise the person
+            <input
+              name="reportedPersonDescription"
+              value={form.reportedPersonDescription}
+              onChange={updateForm}
+              placeholder="Age, height, clothing, the vehicle they use, where they are usually found"
+              className={selectClass}
+            />
+          </label>
+
+          <label className={labelClass}>
+            Anyone who saw it happen
+            <input
+              name="witnessDetails"
+              value={form.witnessDetails}
+              onChange={updateForm}
+              placeholder="Name and phone number of a witness, if there is one"
+              className={selectClass}
+            />
+          </label>
+
+          <label className={labelClass}>
+            What happened
+            <textarea
+              name="message"
+              value={form.message}
+              onChange={updateForm}
+              rows="5"
+              placeholder="Explain what happened: the date, what service you were seeking, what you were asked for, how much money, and who else was present."
+              className={`${selectClass} resize-y`}
+            />
+          </label>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              ['evidenceImage', 'Photo evidence', 'image/*'],
+              ['evidenceDocument', 'Document evidence', '.pdf,.doc,.docx,.txt,image/*'],
+              ['voiceNote', 'Voice evidence', 'audio/*'],
+            ].map(([name, label, accept]) => (
+              <label key={name} className="block rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                  <FileText className="h-3.5 w-3.5" style={{ color: BRAND }} />
+                  {label}
+                </span>
+                <input name={name} type="file" accept={accept} onChange={updateFile} className="mt-2 w-full text-[11px] text-slate-500" />
+              </label>
+            ))}
+          </div>
+
+          <label className={labelClass}>
+            Reporting mode
+            <select name="reportingMode" value={form.reportingMode} onChange={updateForm} className={selectClass}>
+              <option value="verified">Verified citizen - RIB can identify and contact me</option>
+              <option value="anonymous">Anonymous - protect my identity where possible</option>
+            </select>
+          </label>
+
+          {submitError ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+              {submitError}
+            </div>
+          ) : null}
+
+          {submittedCase ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-7 text-emerald-800">
+              <span className="font-bold">Submitted:</span> {submittedCase.id}. RIB has a three-day response window.
+              <div className="mt-3">
+                <Link
+                  to={`/dashboard/citizen/track?caseId=${submittedCase.id}`}
+                  className="rounded-lg px-4 py-2 text-xs font-bold text-white"
+                  style={{ backgroundColor: BRAND }}
+                >
+                  Track this case
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            style={{ backgroundColor: BRAND }}
+          >
+            <Send className="h-4 w-4" />
+            {isSubmitting ? 'Sending to RIB...' : 'Send report to RIB'}
+          </button>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
 export function CitizenSubmitReportPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const institutionSlug = searchParams.get('institution') ?? '';
+  const reportMode = searchParams.get('mode') ?? '';
   const { dashboard, context, isLoading, error, reload } = useCitizenData(institutionSlug);
   // SACCFP focuses on corruption reporting, so corruption is the default issue type.
   const initialIssueType = searchParams.get('issue') === 'service_issue' ? 'service_issue' : 'corruption_issue';
-  const serviceFromQuery = searchParams.get('service') ?? officeServicesFallback[0].name;
-  const staffFromQuery = searchParams.get('staff') ?? officeServicesFallback[0].staffName;
+  const serviceFromQuery = searchParams.get('service') ?? '';
+  const staffFromQuery = searchParams.get('staff') ?? '';
   const [form, setForm] = useState({
     issueType: initialIssueType,
     category: issueCategories[initialIssueType][0],
@@ -1065,22 +1359,20 @@ export function CitizenSubmitReportPage() {
   const targetLeaders = context?.complaintTargetLeaders ?? [];
   const accusedOptions = context?.accusedLeaderOptions ?? [];
   const scannedOffice = context?.selectedInstitution ?? null;
-  const serviceOptions = useMemo(() => {
-    if (scannedOffice?.services?.length > 0) {
-      return scannedOffice.services.map((service) => service.name);
-    }
-
-    return officeServicesFallback.map((service) => service.name);
-  }, [scannedOffice]);
-  const officialOptions = useMemo(() => {
-    if (scannedOffice?.accountabilityContacts?.length > 0) {
-      return scannedOffice.accountabilityContacts.map(
+  // Only the scanned institution's own services and staff are offered. Falling
+  // back to a sample office would put another office's officials on a real
+  // corruption report.
+  const serviceOptions = useMemo(
+    () => (scannedOffice?.services ?? []).map((service) => service.name),
+    [scannedOffice],
+  );
+  const officialOptions = useMemo(
+    () =>
+      (scannedOffice?.accountabilityContacts ?? []).map(
         (contact) => `${contact.fullName} (${contact.positionTitle})`,
-      );
-    }
-
-    return officeServicesFallback.map((service) => service.staffName);
-  }, [scannedOffice]);
+      ),
+    [scannedOffice],
+  );
 
   useEffect(() => {
     setForm((current) => {
@@ -1184,6 +1476,92 @@ export function CitizenSubmitReportPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Two ways in: scan the office QR so the report names its real services and
+  // officials, or — when the person asking for the bribe holds no public post —
+  // describe them by hand and send it straight to RIB.
+  if (!institutionSlug && reportMode === 'manual') {
+    return (
+      <PageShell>
+        <PageHeader
+          eyebrow="Submit Report"
+          title="Report corruption without a QR code"
+          description="Use this when the person who asked you for money does not work at a government office, so there is no QR code to scan."
+        />
+        <ManualCorruptionReportForm onBack={() => setSearchParams({})} />
+      </PageShell>
+    );
+  }
+
+  if (!institutionSlug && reportMode === 'scan') {
+    return (
+      <PageShell>
+        <PageHeader
+          eyebrow="Submit Report"
+          title="Scan the institution QR code"
+          description="Scan the QR code of the office where the problem happened. Its real services and officials are then loaded into the report form."
+        />
+        <QrScanPanel
+          onSlug={(slug) => {
+            const next = new URLSearchParams(searchParams);
+            next.delete('mode');
+            next.set('institution', slug);
+            setSearchParams(next);
+          }}
+        />
+      </PageShell>
+    );
+  }
+
+  if (!institutionSlug) {
+    return (
+      <PageShell>
+        <PageHeader
+          eyebrow="Submit Report"
+          title="How do you want to report?"
+          description="Choose the option that matches your situation. Both reports reach RIB with a case ID and a three-day response window."
+        />
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {[
+            {
+              key: 'scan',
+              icon: QrCode,
+              title: 'Scan an institution QR code',
+              body: 'The problem happened at a government office. Scanning loads that office’s real services, official fees, and the staff responsible, so your report names them exactly.',
+              action: 'Open the scanner',
+            },
+            {
+              key: 'manual',
+              icon: Send,
+              title: 'Report without a QR code',
+              body: 'The person who asked you for money does not work at a government office — a broker or an intermediary. Describe who they are, what they asked for, and attach any evidence.',
+              action: 'Write the report',
+            },
+          ].map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setSearchParams({ mode: option.key })}
+              className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-brand-300 hover:shadow-md"
+            >
+              <span
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-white"
+                style={{ backgroundColor: BRAND }}
+              >
+                <option.icon className="h-5 w-5" />
+              </span>
+              <span className="mt-4 text-base font-black text-slate-900">{option.title}</span>
+              <span className="mt-2 flex-1 text-sm leading-6 text-slate-500">{option.body}</span>
+              <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: BRAND }}>
+                {option.action}
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </button>
+          ))}
+        </div>
+      </PageShell>
+    );
+  }
 
   if (isLoading) {
     return (

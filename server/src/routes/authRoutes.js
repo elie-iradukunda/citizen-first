@@ -1,11 +1,37 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { institutionEmployees, registeredCitizens, systemUsers } from '../data/registrationData.js';
-import { createSession, removeSession } from '../data/sessionStore.js';
+import {
+  createPasswordCredentials,
+  institutionEmployees,
+  registeredCitizens,
+  systemUsers,
+} from '../data/registrationData.js';
+import { createSession, removeSession, removeSessionsForUser } from '../data/sessionStore.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
+import { getClientBaseUrl } from '../config/publicBaseUrl.js';
+import { isEmailLive, sendEmailInBackground, templates } from '../services/emailService.js';
 
 const router = Router();
+
+// Password reset tokens live only until they are used or expire. Keyed by the
+// token itself so a lookup cannot be done from the email address alone.
+const passwordResetTokens = new Map();
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+function consumeResetToken(token) {
+  const entry = passwordResetTokens.get(token);
+  if (!entry) {
+    return null;
+  }
+
+  if (new Date(entry.expiresAt) < new Date()) {
+    passwordResetTokens.delete(token);
+    return null;
+  }
+
+  return entry;
+}
 
 const loginSchema = z.object({
   accessKey: z.string().trim().min(8).optional(),
@@ -116,6 +142,108 @@ router.post('/login', (request, response) => {
   return response.json({
     token,
     user: buildSafeUserProfile(user),
+  });
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().trim().min(16),
+  password: z.string().min(8).max(64),
+});
+
+// Always answers the same way whether or not the address belongs to an account,
+// so this endpoint cannot be used to discover who is registered.
+router.post('/forgot-password', (request, response) => {
+  const parseResult = forgotPasswordSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Provide a valid email address.',
+    });
+  }
+
+  const normalizedEmail = parseResult.data.email.trim().toLowerCase();
+  const genericResponse = {
+    message:
+      'If that email belongs to a SACCFP account, a reset link has been sent. Check your inbox and spam folder.',
+  };
+
+  const user = systemUsers.find(
+    (entry) => entry.email?.toLowerCase() === normalizedEmail && entry.status === 'active',
+  );
+
+  if (!user) {
+    return response.json(genericResponse);
+  }
+
+  // Only the newest link stays valid.
+  for (const [existingToken, entry] of passwordResetTokens.entries()) {
+    if (entry.userId === user.userId) {
+      passwordResetTokens.delete(existingToken);
+    }
+  }
+
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString();
+  passwordResetTokens.set(token, { userId: user.userId, expiresAt });
+  const resetLink = `${getClientBaseUrl()}/reset-password?token=${token}`;
+
+  sendEmailInBackground(
+    user.email,
+    templates.passwordReset({
+      fullName: user.fullName,
+      resetLink,
+      expiresAt: new Date(expiresAt).toLocaleString('en-US'),
+    }),
+  );
+
+  // With no mail provider configured the link could never reach anyone, so it
+  // is returned directly — otherwise it is only ever sent to the mailbox.
+  if (!isEmailLive()) {
+    return response.json({ ...genericResponse, resetLink });
+  }
+
+  return response.json(genericResponse);
+});
+
+router.post('/reset-password', (request, response) => {
+  const parseResult = resetPasswordSchema.safeParse(request.body);
+  if (!parseResult.success) {
+    return response.status(400).json({
+      message: 'Password must be at least 8 characters and the reset link must be complete.',
+    });
+  }
+
+  const { token, password } = parseResult.data;
+  const entry = consumeResetToken(token);
+  if (!entry) {
+    return response.status(400).json({
+      message: 'This reset link is invalid or has expired. Request a new one.',
+    });
+  }
+
+  const user = systemUsers.find(
+    (candidate) => candidate.userId === entry.userId && candidate.status === 'active',
+  );
+  if (!user) {
+    passwordResetTokens.delete(token);
+    return response.status(400).json({
+      message: 'This reset link is invalid or has expired. Request a new one.',
+    });
+  }
+
+  const { passwordSalt, passwordHash } = createPasswordCredentials(password, user.userId);
+  user.passwordSalt = passwordSalt;
+  user.passwordHash = passwordHash;
+
+  passwordResetTokens.delete(token);
+  removeSessionsForUser(user.userId);
+
+  return response.json({
+    message: 'Password updated. You can now sign in with your new password.',
+    email: user.email,
   });
 });
 

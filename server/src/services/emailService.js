@@ -30,7 +30,7 @@ async function resolveGmailSmtpHost() {
 function initResend() {
   activeProvider = 'resend';
 
-  const send = async ({ to, subject, html }) => {
+  const send = async ({ to, subject, html, attachments }) => {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -43,6 +43,15 @@ function initResend() {
         subject,
         html,
         ...(mailConfig.replyTo ? { reply_to: mailConfig.replyTo } : {}),
+        ...(attachments?.length
+          ? {
+              attachments: attachments.map(({ filename, contentBase64, cid }) => ({
+                filename,
+                content: contentBase64,
+                ...(cid ? { content_id: cid } : {}),
+              })),
+            }
+          : {}),
       }),
     });
 
@@ -95,13 +104,22 @@ async function initGmail() {
     socketTimeout: 8000,
   });
 
-  transport = async ({ to, subject, html }) => {
+  transport = async ({ to, subject, html, attachments }) => {
     const info = await gmail.sendMail({
       from: mailConfig.from,
       to,
       subject,
       html,
       ...(mailConfig.replyTo ? { replyTo: mailConfig.replyTo } : {}),
+      ...(attachments?.length
+        ? {
+            attachments: attachments.map(({ filename, contentBase64, cid }) => ({
+              filename,
+              content: Buffer.from(contentBase64, 'base64'),
+              ...(cid ? { cid, contentDisposition: 'inline' } : {}),
+            })),
+          }
+        : {}),
     });
 
     return { id: info.messageId };
@@ -123,7 +141,10 @@ if (mailConfig.provider === 'resend' && mailConfig.isLive) {
   );
 }
 
-export async function sendEmail(to, { subject, html }) {
+// `attachments` entries are { filename, contentBase64, cid? }. An entry with a
+// `cid` is embedded inline, so images render even when the server itself is not
+// publicly reachable (local dev) — hosted image URLs cannot work there.
+export async function sendEmail(to, { subject, html, attachments }) {
   const recipient = String(to || '').trim();
   if (!recipient) {
     return { sent: false, error: 'No recipient address.' };
@@ -136,7 +157,7 @@ export async function sendEmail(to, { subject, html }) {
 
   try {
     const { id } = await Promise.race([
-      transport({ to: recipient, subject, html }),
+      transport({ to: recipient, subject, html, attachments }),
       new Promise((_, reject) =>
         setTimeout(
           () => reject(new Error(`Mail provider did not respond within ${mailConfig.timeoutMs}ms.`)),

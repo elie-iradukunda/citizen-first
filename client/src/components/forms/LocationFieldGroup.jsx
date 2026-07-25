@@ -35,6 +35,32 @@ function InputField({ label, value, onChange, placeholder, required }) {
   );
 }
 
+// Sector, cell, and village are typed in rather than picked: the platform only
+// ships a sample of Rwanda's 416 sectors and 2,148 cells, so any known names are
+// offered as suggestions while any other real place can still be entered.
+function ComboField({ label, value, onChange, options, placeholder, required, listId }) {
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-semibold text-ink">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required={required}
+        list={options.length > 0 ? listId : undefined}
+        className="w-full rounded-2xl border border-ink/15 bg-mist px-4 py-3 text-sm outline-none transition focus:border-tide"
+      />
+      {options.length > 0 ? (
+        <datalist id={listId}>
+          {options.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+      ) : null}
+    </label>
+  );
+}
+
 function needsLevel(requiredLevel, target) {
   const order = ['province', 'district', 'sector', 'cell', 'village'];
   return order.indexOf(requiredLevel) >= order.indexOf(target);
@@ -45,7 +71,6 @@ function LocationFieldGroup({
   location,
   updateLocation,
   options,
-  catalogAvailable,
   requiredLevel = 'village',
 }) {
   const requiresDistrict = needsLevel(requiredLevel, 'district');
@@ -89,70 +114,43 @@ function LocationFieldGroup({
 
       {requiresSector ? (
         <div className="mt-4">
-          {catalogAvailable.sectors && options.sectors.length > 0 ? (
-            <SelectField
-              label="Sector"
-              value={location.sector}
-              onChange={(value) => updateLocation('sector', value)}
-              options={options.sectors}
-              disabled={!location.district}
-              required={requiresSector}
-            />
-          ) : (
-            <InputField
-              label="Sector"
-              value={location.sector}
-              onChange={(value) => updateLocation('sector', value)}
-              placeholder="Type sector name"
-              required={requiresSector}
-            />
-          )}
+          <ComboField
+            label="Sector"
+            value={location.sector}
+            onChange={(value) => updateLocation('sector', value)}
+            options={options.sectors}
+            listId="location-sector-options"
+            placeholder="Type the sector name"
+            required={requiresSector}
+          />
         </div>
       ) : null}
 
       {requiresCell ? (
         <div className="mt-4">
-          {catalogAvailable.cells && options.cells.length > 0 ? (
-            <SelectField
-              label="Cell"
-              value={location.cell}
-              onChange={(value) => updateLocation('cell', value)}
-              options={options.cells}
-              disabled={!location.sector}
-              required={requiresCell}
-            />
-          ) : (
-            <InputField
-              label="Cell"
-              value={location.cell}
-              onChange={(value) => updateLocation('cell', value)}
-              placeholder="Type cell name"
-              required={requiresCell}
-            />
-          )}
+          <ComboField
+            label="Cell"
+            value={location.cell}
+            onChange={(value) => updateLocation('cell', value)}
+            options={options.cells}
+            listId="location-cell-options"
+            placeholder="Type the cell name"
+            required={requiresCell}
+          />
         </div>
       ) : null}
 
       {requiresVillage ? (
         <div className="mt-4">
-          {catalogAvailable.villages && options.villages.length > 0 ? (
-            <SelectField
-              label="Village"
-              value={location.village}
-              onChange={(value) => updateLocation('village', value)}
-              options={options.villages}
-              disabled={!location.cell}
-              required={requiresVillage}
-            />
-          ) : (
-            <InputField
-              label="Village"
-              value={location.village}
-              onChange={(value) => updateLocation('village', value)}
-              placeholder="Type village name"
-              required={requiresVillage}
-            />
-          )}
+          <ComboField
+            label="Village"
+            value={location.village}
+            onChange={(value) => updateLocation('village', value)}
+            options={options.villages}
+            listId="location-village-options"
+            placeholder="Type the village name"
+            required={requiresVillage}
+          />
         </div>
       ) : null}
     </section>

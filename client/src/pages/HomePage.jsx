@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { getRoleDashboardPath } from '../lib/authRouting';
+import { normalizeQrDestination } from '../lib/qrDestination';
 
 const processSteps = [
   {
@@ -26,63 +27,6 @@ const processSteps = [
     description: 'Report bribery, unofficial fees, or abuse of authority to RIB with a case ID.',
   },
 ];
-
-const knownQrDestinations = {
-  'SACCFP-KACYIRU-SECTOR': '/institutions/kacyiru-sector-office#info',
-  'GOV-KACYIRU-SECTOR': '/institutions/kacyiru-sector-office#info',
-};
-
-function normalizeQrDestination(rawValue) {
-  const value = String(rawValue ?? '').trim();
-  if (!value) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    const publicUrl = parsed.publicUrl ?? parsed.accessUrl ?? parsed.url;
-    const slug = parsed.slug ?? parsed.institutionSlug;
-
-    if (publicUrl) {
-      return normalizeQrDestination(publicUrl);
-    }
-
-    if (slug) {
-      return `/institutions/${encodeURIComponent(slug)}#info`;
-    }
-  } catch {
-    // Most QR codes are URLs or simple text, so JSON parsing is optional.
-  }
-
-  const upperValue = value.toUpperCase();
-  if (knownQrDestinations[upperValue]) {
-    return knownQrDestinations[upperValue];
-  }
-
-  try {
-    const parsedUrl = new URL(value, window.location.origin);
-    const slugFromQuery =
-      parsedUrl.searchParams.get('slug') ??
-      parsedUrl.searchParams.get('institutionSlug') ??
-      parsedUrl.searchParams.get('institution');
-
-    if (parsedUrl.pathname.startsWith('/institutions/')) {
-      return `${parsedUrl.pathname}${parsedUrl.search}#info`;
-    }
-
-    if (slugFromQuery) {
-      return `/institutions/${encodeURIComponent(slugFromQuery)}#info`;
-    }
-  } catch {
-    // Fall through to simple slug handling.
-  }
-
-  if (/^[a-z0-9-]+$/i.test(value)) {
-    return `/institutions/${encodeURIComponent(value.toLowerCase())}#info`;
-  }
-
-  return null;
-}
 
 function HomePage() {
   const [scannerOpen, setScannerOpen] = useState(false);

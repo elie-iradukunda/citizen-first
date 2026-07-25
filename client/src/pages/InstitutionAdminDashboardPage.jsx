@@ -53,6 +53,7 @@ const emptyStaffForm = {
   email: '',
   positionTitle: '',
   positionKinyarwanda: '',
+  departmentId: '',
   reportsTo: '',
   description: '',
   createPlatformAccount: false,
@@ -105,6 +106,7 @@ function staffToForm(employee) {
     email: employee.email ?? '',
     positionTitle: employee.positionTitle ?? '',
     positionKinyarwanda: employee.positionKinyarwanda ?? '',
+    departmentId: employee.departmentId ?? '',
     reportsTo: employee.reportsTo ?? '',
     description: employee.description ?? '',
     status: employee.status ?? 'Active',
@@ -493,6 +495,7 @@ function InstitutionAdminDashboardPage() {
         email: staffForm.email.trim(),
         positionTitle: staffForm.positionTitle.trim(),
         positionKinyarwanda: staffForm.positionKinyarwanda.trim(),
+        departmentId: staffForm.departmentId,
         reportsTo: staffForm.reportsTo.trim(),
         description: staffForm.description.trim(),
         status: 'Active',
@@ -859,6 +862,19 @@ function InstitutionAdminDashboardPage() {
               value={staffForm.positionKinyarwanda}
               onChange={(event) => setStaffForm((c) => ({ ...c, positionKinyarwanda: event.target.value }))}
             />
+            <SelectInput
+              label="Department"
+              name="departmentId"
+              value={staffForm.departmentId}
+              onChange={(event) => setStaffForm((c) => ({ ...c, departmentId: event.target.value }))}
+            >
+              <option value="">No department yet</option>
+              {(institution?.departments ?? []).map((department) => (
+                <option key={department.departmentId} value={department.departmentId}>
+                  {department.name}
+                </option>
+              ))}
+            </SelectInput>
             <TextInput
               label="Reports to"
               name="reportsTo"
@@ -968,6 +984,10 @@ function InstitutionAdminDashboardPage() {
                   ) : null}
                 </div>
                 <dl className="mt-4 space-y-1.5 text-sm text-slate">
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate/70">Department</dt>
+                    <dd className="font-semibold text-ink">{member.departmentName || 'Not assigned'}</dd>
+                  </div>
                   <div className="flex justify-between gap-2">
                     <dt className="text-slate/70">Phone</dt>
                     <dd className="font-semibold text-ink">{member.phone || '—'}</dd>
@@ -1226,6 +1246,7 @@ function InstitutionAdminDashboardPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <DetailRow label="Position" value={modal.data.positionTitle} />
             <DetailRow label="Position (Kinyarwanda)" value={modal.data.positionKinyarwanda} />
+            <DetailRow label="Department" value={modal.data.departmentName || 'Not assigned'} />
             <DetailRow label="National ID" value={modal.data.nationalId} />
             <DetailRow label="Phone" value={modal.data.phone} />
             <DetailRow label="Email" value={modal.data.email} />
@@ -1409,6 +1430,7 @@ function InstitutionAdminDashboardPage() {
                       email: modalForm.email.trim(),
                       positionTitle: modalForm.positionTitle.trim(),
                       positionKinyarwanda: modalForm.positionKinyarwanda.trim(),
+                      departmentId: modalForm.departmentId,
                       reportsTo: modalForm.reportsTo.trim(),
                       description: modalForm.description.trim(),
                       status: modalForm.status,
@@ -1431,6 +1453,14 @@ function InstitutionAdminDashboardPage() {
             <TextInput label="Position title" name="positionTitle" value={modalForm.positionTitle} onChange={updateModalForm} />
             <TextInput label="Position (Kinyarwanda)" name="positionKinyarwanda" value={modalForm.positionKinyarwanda} onChange={updateModalForm} />
             <TextInput label="Reports to" name="reportsTo" value={modalForm.reportsTo} onChange={updateModalForm} />
+            <SelectInput label="Department" name="departmentId" value={modalForm.departmentId} onChange={updateModalForm}>
+              <option value="">No department yet</option>
+              {(institution?.departments ?? []).map((department) => (
+                <option key={department.departmentId} value={department.departmentId}>
+                  {department.name}
+                </option>
+              ))}
+            </SelectInput>
             <SelectInput label="Status" name="status" value={modalForm.status} onChange={updateModalForm}>
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>

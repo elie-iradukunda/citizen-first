@@ -1,24 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { registerCitizen } from '../lib/registrationApi';
-
-const KACYIRU_LOCATION = {
-  country: 'Rwanda',
-  province: 'Kigali City',
-  district: 'Gasabo',
-  sector: 'Kacyiru',
-};
-
-const KACYIRU_CELLS = [
-  {
-    cell: 'Kamatamu',
-    villages: ['Ubumwe', 'Ukuri'],
-  },
-  {
-    cell: 'Kamatamu II',
-    villages: ['Amahoro II', 'Ubufatanye'],
-  },
-];
+import { useRwandaLocation } from '../hooks/useRwandaLocation';
 
 const initialCitizen = {
   fullName: '',
@@ -32,9 +15,13 @@ const initialCitizen = {
   idType: 'NATIONAL_ID',
 };
 
-const initialLocalLocation = {
-  cell: KACYIRU_CELLS[0].cell,
-  village: KACYIRU_CELLS[0].villages[0],
+const DEFAULT_LOCATION = {
+  country: 'Rwanda',
+  province: 'Kigali City',
+  district: 'Gasabo',
+  sector: 'Kacyiru',
+  cell: 'Kamatamu',
+  village: 'Ubumwe',
 };
 
 function Field({ label, name, value, onChange, type = 'text', placeholder = '', autoComplete = 'off', ...props }) {
@@ -82,34 +69,14 @@ function ReadOnlyLocation({ label, value }) {
 
 function CitizenRegistrationPage() {
   const [form, setForm] = useState(initialCitizen);
-  const [localLocation, setLocalLocation] = useState(initialLocalLocation);
+  const { location, updateLocation, options } = useRwandaLocation(DEFAULT_LOCATION);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
 
-  const villageOptions = useMemo(
-    () => KACYIRU_CELLS.find((item) => item.cell === localLocation.cell)?.villages ?? [],
-    [localLocation.cell],
-  );
-
   const updateForm = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
-  };
-
-  const updateLocalLocation = (event) => {
-    const { name, value } = event.target;
-
-    if (name === 'cell') {
-      const nextVillages = KACYIRU_CELLS.find((item) => item.cell === value)?.villages ?? [];
-      setLocalLocation({
-        cell: value,
-        village: nextVillages[0] ?? '',
-      });
-      return;
-    }
-
-    setLocalLocation((current) => ({ ...current, [name]: value }));
   };
 
   const onSubmit = async (event) => {
@@ -132,14 +99,16 @@ function CitizenRegistrationPage() {
         dateOfBirth: form.dateOfBirth,
         gender: form.gender,
         idType: form.idType,
-        ...KACYIRU_LOCATION,
-        cell: localLocation.cell,
-        village: localLocation.village,
+        country: location.country || 'Rwanda',
+        province: location.province,
+        district: location.district,
+        sector: location.sector.trim(),
+        cell: location.cell.trim(),
+        village: location.village.trim(),
       });
 
       setResult(response.item);
       setForm(initialCitizen);
-      setLocalLocation(initialLocalLocation);
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -168,17 +137,17 @@ function CitizenRegistrationPage() {
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            <ReadOnlyLocation label="Province" value={KACYIRU_LOCATION.province} />
-            <ReadOnlyLocation label="District" value={KACYIRU_LOCATION.district} />
-            <ReadOnlyLocation label="Sector" value={KACYIRU_LOCATION.sector} />
-            <ReadOnlyLocation label="Country" value={KACYIRU_LOCATION.country} />
+            <ReadOnlyLocation label="Country" value={location.country || 'Rwanda'} />
+            <ReadOnlyLocation label="Province" value={location.province || 'Not selected'} />
+            <ReadOnlyLocation label="District" value={location.district || 'Not selected'} />
+            <ReadOnlyLocation label="Sector" value={location.sector || 'Not entered'} />
           </div>
 
           <div className="mt-8 rounded-[1rem] border border-emerald-300/10 bg-[#0b1410]/85 p-5">
             <p className="text-sm font-black text-white">Registration flow</p>
             <div className="mt-4 grid gap-3 text-sm leading-6 text-emerald-50/70">
               <p>1. Enter identity and contact details.</p>
-              <p>2. Select Akagari and Umudugudu inside Kacyiru.</p>
+              <p>2. Choose your Intara and Akarere, then type your Umurenge, Akagari, and Umudugudu.</p>
               <p>3. Login and submit reports only from a citizen account.</p>
             </div>
           </div>
@@ -262,28 +231,82 @@ function CitizenRegistrationPage() {
           </div>
 
           <div className="mt-6 rounded-[1rem] border border-emerald-300/10 bg-emerald-400/5 p-4">
-            <p className="text-sm font-black text-white">Kacyiru local address</p>
+            <p className="text-sm font-black text-white">Your local address</p>
+            <p className="mt-1 text-xs leading-5 text-emerald-100/60">
+              Choose your Intara and Akarere, then type your Umurenge, Akagari, and Umudugudu exactly
+              as they are known locally.
+            </p>
             <div className="mt-4 grid gap-5 md:grid-cols-2">
-              <SelectField label="Akagari / Cell" name="cell" value={localLocation.cell} onChange={updateLocalLocation}>
-                {KACYIRU_CELLS.map((item) => (
-                  <option key={item.cell} value={item.cell}>
-                    {item.cell}
+              <SelectField
+                label="Intara / Province"
+                name="province"
+                value={location.province}
+                onChange={(event) => updateLocation('province', event.target.value)}
+              >
+                <option value="">Select province</option>
+                {options.provinces.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
                   </option>
                 ))}
               </SelectField>
               <SelectField
-                label="Umudugudu / Village"
-                name="village"
-                value={localLocation.village}
-                onChange={updateLocalLocation}
+                label="Akarere / District"
+                name="district"
+                value={location.district}
+                onChange={(event) => updateLocation('district', event.target.value)}
               >
-                {villageOptions.map((village) => (
-                  <option key={village} value={village}>
-                    {village}
+                <option value="">Select district</option>
+                {options.districts.map((district) => (
+                  <option key={district} value={district}>
+                    {district}
                   </option>
                 ))}
               </SelectField>
+              <Field
+                label="Umurenge / Sector"
+                name="sector"
+                value={location.sector}
+                onChange={(event) => updateLocation('sector', event.target.value)}
+                placeholder="Type your sector"
+                list="citizen-sector-options"
+                required
+              />
+              <Field
+                label="Akagari / Cell"
+                name="cell"
+                value={location.cell}
+                onChange={(event) => updateLocation('cell', event.target.value)}
+                placeholder="Type your cell"
+                list="citizen-cell-options"
+                required
+              />
+              <Field
+                label="Umudugudu / Village"
+                name="village"
+                value={location.village}
+                onChange={(event) => updateLocation('village', event.target.value)}
+                placeholder="Type your village"
+                list="citizen-village-options"
+                required
+              />
             </div>
+
+            <datalist id="citizen-sector-options">
+              {options.sectors.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+            <datalist id="citizen-cell-options">
+              {options.cells.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+            <datalist id="citizen-village-options">
+              {options.villages.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
           </div>
 
           {error ? (

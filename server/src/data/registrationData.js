@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { buildInstitutionAccessUrl } from '../config/publicBaseUrl.js';
 import { HIERARCHY_TEST_CREDENTIALS } from './hierarchyTestSeed.js';
+import { complaints, escalations } from './mockData.js';
+import { registerPersistedCollections } from './persistence.js';
 
 const NATIONAL_ROOT_ID = 'NATIONAL-PLATFORM';
 
@@ -1438,3 +1440,18 @@ seedDemoTestingInstitutions();
 // province-level RIB Supervisory Review and Escalation Unit before national.
 seedRibCaseStudyData();
 await ensureInstitutionQrCodes();
+
+// Runs last: anything saved from a previous run replaces the freshly seeded
+// arrays, so institutions, staff, and reports created through the app survive a
+// restart instead of being wiped back to the seed.
+registerPersistedCollections({
+  systemUsers,
+  institutionInvites,
+  registeredInstitutions,
+  institutionDepartments,
+  institutionEmployees,
+  institutionStaffServiceLinks,
+  registeredCitizens,
+  complaints,
+  escalations,
+});

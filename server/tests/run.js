@@ -3,6 +3,10 @@
 import { spawn } from 'node:child_process';
 
 process.env.DB_DISABLED = 'true';
+// Tests must never read or overwrite the saved data snapshot: they run against
+// the seed data, and their throwaway institutions would otherwise be written
+// into whatever the developer created in the running app.
+process.env.DATA_PERSISTENCE = 'false';
 
 const { default: app } = await import('../src/app.js');
 

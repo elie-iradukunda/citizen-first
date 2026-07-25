@@ -16,7 +16,6 @@ const EMPTY_DEPARTMENT = {
 };
 
 const EMPTY_EMPLOYEE = {
-  leaderCode: '',
   fullName: '',
   nationalId: '',
   positionTitle: '',
@@ -661,12 +660,6 @@ function InstitutionRegistrationPage() {
                 {employees.map((employee, index) => (
                   <div key={`employee-${index}`} className="rounded-2xl border border-ink/10 bg-mist p-4">
                     <div className="grid gap-3 md:grid-cols-2">
-                      <input
-                        value={employee.leaderCode}
-                        onChange={(event) => updateEmployee(index, 'leaderCode', event.target.value)}
-                        placeholder="RIB lead code (optional)"
-                        className="rounded-2xl border border-ink/15 bg-white px-4 py-3 text-sm outline-none focus:border-tide"
-                      />
                       <input
                         value={employee.fullName}
                         onChange={(event) => updateEmployee(index, 'fullName', event.target.value)}
