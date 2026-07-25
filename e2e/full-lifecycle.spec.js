@@ -55,8 +55,8 @@ test('A. institution admin: full service/department/staff CRUD with modals', asy
   await servicesPanel.locator('select[name="feeType"]').selectOption('paid');
   await servicesPanel.locator('input[name="officialFeeRwf"]').fill('1500');
   await servicesPanel.locator('input[name="schedule"]').fill('Monday to Friday, 08:00 - 12:00');
-  await servicesPanel.locator('input[name="documents"]').fill('National ID, request letter');
-  await servicesPanel.locator('input[name="description"]').fill('Notary support created by the e2e test.');
+  await servicesPanel.locator('[name="documents"]').fill('National ID, request letter');
+  await servicesPanel.locator('[name="description"]').fill('Notary support created by the e2e test.');
   await servicesPanel.getByRole('button', { name: /add service/i }).click();
   await expect(servicesPanel).toContainText(`Service "${serviceName}" was registered.`);
 
@@ -87,13 +87,13 @@ test('A. institution admin: full service/department/staff CRUD with modals', asy
   // --- DEPARTMENT create / edit / delete ---
   const departmentsPanel = page.locator('section#departments');
   await departmentsPanel.locator('input[name="name"]').fill(departmentName);
-  await departmentsPanel.locator('input[name="description"]').fill('Handles digital archives.');
+  await departmentsPanel.locator('[name="description"]').fill('Handles digital archives.');
   await departmentsPanel.getByRole('button', { name: /add department/i }).click();
   await expect(departmentsPanel).toContainText(`Department "${departmentName}" was created.`);
 
   const departmentCard = departmentsPanel.locator('article', { hasText: departmentName });
   await departmentCard.getByRole('button', { name: 'Edit' }).click();
-  await dialog(page).locator('input[name="description"]').fill('Handles digital archives and citizen records.');
+  await dialog(page).locator('[name="description"]').fill('Handles digital archives and citizen records.');
   await dialog(page).getByRole('button', { name: /save department/i }).click();
   await expect(departmentsPanel).toContainText('Department updated successfully.');
   await expect(departmentCard).toContainText('citizen records');
@@ -139,12 +139,11 @@ test('A. institution admin: full service/department/staff CRUD with modals', asy
     'Citizen complaint reception',
   );
   // create a new link: default selects (leader + first service) are unlinked in the seed
-  await linkingPanel.getByRole('button', { name: /^link$/i }).click();
+  await linkingPanel.getByRole('button', { name: /^assign$/i }).click();
   await expect(linkingPanel).toContainText(/is now responsible for/i);
   await shot(page, '23a-admin-staff-service-linked');
   // and unlink it again to leave the seed unchanged
-  const newLinkCard = linkingPanel.locator('article', { hasText: 'Kacyiru Sector Institution Admin' });
-  await newLinkCard.getByRole('button', { name: /unlink/i }).click();
+  await linkingPanel.getByRole('button', { name: 'Unlink Kacyiru Sector Institution Admin' }).click();
   await expect(linkingPanel).toContainText('Staff-service link removed successfully.');
 
   // --- QR stays live through it all ---

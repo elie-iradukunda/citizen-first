@@ -1433,4 +1433,8 @@ export { HIERARCHY_TEST_CREDENTIALS };
 
 seedKacyiruSectorOfficeData();
 seedDemoTestingInstitutions();
+// Seeds the full RIB review chain (village -> cell -> sector -> district ->
+// province) so citizen complaints can climb the escalation ladder to the
+// province-level RIB Supervisory Review and Escalation Unit before national.
+seedRibCaseStudyData();
 await ensureInstitutionQrCodes();
