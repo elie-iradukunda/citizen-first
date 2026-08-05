@@ -1818,8 +1818,10 @@ function canUserRespondToComplaint(user, complaint) {
     return false;
   }
 
+  // RIB national oversight answers every case, assigned to them or not — the
+  // platform runs with a single RIB admin rather than an officer chain.
   if (ADMIN_DASHBOARD_ROLES.has(user.role)) {
-    return complaint.assignedOfficerId === user.userId;
+    return true;
   }
 
   if (user.role === 'rib_officer_1' || user.role === 'rib_officer_2') {

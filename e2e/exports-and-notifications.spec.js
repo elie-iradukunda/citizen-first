@@ -7,7 +7,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const ACCOUNTS = {
   citizen: { email: 'citizen.demo@saccfp.rw', password: 'Citizen@12345' },
   officer1: { email: 'rib.officer1@saccfp.rw', password: 'RibOfficer1@12345' },
-  admin: { email: 'national.admin@citizenfirst.gov.rw', password: 'Admin@12345' },
+  admin: { email: 'kasinelydivine30000@gmail.com', password: 'kasine2003' },
 };
 
 async function login(page, { email, password }) {

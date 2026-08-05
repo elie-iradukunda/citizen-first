@@ -191,8 +191,8 @@ const DEFAULT_RIB_OFFICER_ONE_KEY =
 const DEFAULT_RIB_OFFICER_TWO_KEY =
   process.env.DASHBOARD_RIB_OFFICER_TWO_ACCESS_KEY ?? 'CF-RIB-OFFICER2-2026';
 
-const SYSTEM_ADMIN_EMAIL = process.env.SYSTEM_ADMIN_EMAIL ?? 'national.admin@citizenfirst.gov.rw';
-const SYSTEM_ADMIN_PASSWORD = process.env.SYSTEM_ADMIN_PASSWORD ?? 'Admin@12345';
+const SYSTEM_ADMIN_EMAIL = process.env.SYSTEM_ADMIN_EMAIL ?? 'kasinelydivine30000@gmail.com';
+const SYSTEM_ADMIN_PASSWORD = process.env.SYSTEM_ADMIN_PASSWORD ?? 'kasine2003';
 const TEST_ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? 'test.admin@citizenfirst.gov.rw';
 const TEST_ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? 'Admin@12345';
 const DASHBOARD_CITIZEN_EMAIL = process.env.DASHBOARD_CITIZEN_EMAIL ?? 'citizen.demo@saccfp.rw';
@@ -1441,6 +1441,10 @@ seedDemoTestingInstitutions();
 seedRibCaseStudyData();
 await ensureInstitutionQrCodes();
 
+// The seeded logins are configuration, not user data, so they are captured
+// before the snapshot is restored over the top of them.
+const SEEDED_SYSTEM_USERS = systemUsers.map((user) => ({ ...user }));
+
 // Runs last: anything saved from a previous run replaces the freshly seeded
 // arrays, so institutions, staff, and reports created through the app survive a
 // restart instead of being wiped back to the seed.
@@ -1455,3 +1459,24 @@ registerPersistedCollections({
   complaints,
   escalations,
 });
+
+// A restored snapshot carries whatever credentials the seed had when it was
+// written, so changing SYSTEM_ADMIN_EMAIL (or any seeded login) would otherwise
+// never take effect on a server that already has saved data. Re-apply the
+// seeded identity and credentials by userId; accounts created through the app
+// are left untouched.
+for (const seeded of SEEDED_SYSTEM_USERS) {
+  const existing = systemUsers.find((user) => user.userId === seeded.userId);
+  if (!existing) {
+    systemUsers.push({ ...seeded });
+    continue;
+  }
+
+  existing.role = seeded.role;
+  existing.fullName = seeded.fullName;
+  existing.email = seeded.email;
+  existing.accessKey = seeded.accessKey;
+  existing.passwordSalt = seeded.passwordSalt;
+  existing.passwordHash = seeded.passwordHash;
+  existing.status = seeded.status;
+}

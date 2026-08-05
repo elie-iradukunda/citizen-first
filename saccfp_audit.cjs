@@ -33,7 +33,7 @@ const login = async (email, password) => (await api('POST', '/auth/login', null,
   const inst = await login('institution.admin@saccfp.rw', 'Institution@12345');
   const off1 = await login('rib.officer1@saccfp.rw', 'RibOfficer1@12345');
   const off2 = await login('rib.officer2@saccfp.rw', 'RibOfficer2@12345');
-  const admin = await login('national.admin@citizenfirst.gov.rw', 'Admin@12345');
+  const admin = await login('kasinelydivine30000@gmail.com', 'kasine2003');
   ok('citizen login', !!citizen); ok('institution admin login', !!inst);
   ok('RIB officer 1 login', !!off1); ok('RIB officer 2 login', !!off2); ok('national admin login', !!admin);
   ok('reject wrong password', (await api('POST', '/auth/login', null, { email: 'citizen.demo@saccfp.rw', password: 'WrongPass123' })).status === 401);

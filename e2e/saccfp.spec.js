@@ -193,27 +193,18 @@ test('unauthenticated access to a dashboard redirects to login', async ({ page }
   await expect(page).toHaveURL(/\/login/);
 });
 
-test('login page lists the three seeded system users and one-click sign-in works', async ({ page }) => {
+test('login page keeps credentials private and signs the RIB admin in', async ({ page }) => {
   await page.goto('/login');
 
-  // the three system users from the dissertation conceptual framework
+  // no account is advertised on the page — credentials are typed, not listed
   const body = page.locator('body');
-  await expect(body).toContainText('Seeded presentation accounts');
-  await expect(body).toContainText('Citizen');
-  await expect(body).toContainText('Institution Admin');
-  await expect(body).toContainText('RIB');
-  // credentials are visible so the presenter can log in without typing
-  await expect(body).toContainText('citizen.demo@saccfp.rw');
-  await expect(body).toContainText('Citizen@12345');
-  await expect(body).toContainText('institution.admin@saccfp.rw');
-  await expect(body).toContainText('rib.officer1@saccfp.rw');
-  await expect(body).toContainText('rib.officer2@saccfp.rw');
-  await expect(body).toContainText('national.admin@citizenfirst.gov.rw');
-  await shot(page, '12-login-seeded-accounts');
+  await expect(body).not.toContainText('Seeded presentation accounts');
+  await expect(body).not.toContainText('citizen.demo@saccfp.rw');
+  await expect(body).not.toContainText('rib.officer1@saccfp.rw');
+  await shot(page, '12-login-page');
 
-  // one click fills the form, sign in opens the right dashboard (RIB Admin)
-  await page.getByRole('button', { name: /RIB Admin/ }).click();
-  await expect(page.locator('input[type=email]')).toHaveValue('national.admin@citizenfirst.gov.rw');
+  await page.locator('input[type=email]').fill('kasinelydivine30000@gmail.com');
+  await page.locator('input[type=password]').fill('kasine2003');
   await page.locator('button[type=submit]').click();
   await page.waitForURL(/\/dashboard\/admin/, { timeout: 20_000 });
   await expect(page.locator('body')).not.toContainText(/something went wrong|access denied/i);

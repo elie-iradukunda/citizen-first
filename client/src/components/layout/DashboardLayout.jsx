@@ -71,18 +71,10 @@ const dashboardLinksByRole = {
 dashboardLinksByRole.institution_officer = dashboardLinksByRole.rib_officer_1;
 dashboardLinksByRole.oversight_admin = dashboardLinksByRole.national_admin;
 
-// Governance leaders (province → village) both review cases on the officer
-// pages AND own an institution, so their nav combines case review with the
-// institution management (Settings) links.
-const governanceLeaderLinks = [
-  ...dashboardLinksByRole.rib_officer_1,
-  { to: '/dashboard/institution', label: 'Manage Institution', icon: Building2 },
-  { to: '/dashboard/institution#services', label: 'Register Services', icon: Wrench },
-  { to: '/dashboard/institution#departments', label: 'Departments', icon: Building2 },
-  { to: '/dashboard/institution#staff', label: 'Register Staff', icon: UserCog },
-  { to: '/dashboard/institution#linking', label: 'Link Staff to Services', icon: Link2 },
-  { to: '/dashboard/institution#qr-code', label: 'Institution QR Code', icon: QrCode },
-];
+// A governance leader registered through the activation flow IS the institution
+// admin of the office they lead, so they get the institution nav and nothing
+// else. RIB case review belongs to the RIB admin, not to the institution.
+const governanceLeaderLinks = dashboardLinksByRole.institution_admin;
 dashboardLinksByRole.province_leader = governanceLeaderLinks;
 dashboardLinksByRole.district_leader = governanceLeaderLinks;
 dashboardLinksByRole.sector_leader = governanceLeaderLinks;

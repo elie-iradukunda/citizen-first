@@ -2,17 +2,12 @@ export const CITIZEN_DASHBOARD_ROLES = new Set(['citizen']);
 
 export const INSTITUTION_DASHBOARD_ROLES = new Set(['institution_admin']);
 
-// RIB workflow-chain leaders (institution_officer) and seeded governance
-// leaders review cases at their own level, so they use the officer dashboards.
+// Only RIB reviews citizen cases. Governance leaders are institution admins
+// (see INSTITUTION_SETTINGS_ROLES) and no longer sit on the officer dashboards.
 export const OFFICER_DASHBOARD_ROLES = new Set([
   'rib_officer_1',
   'rib_officer_2',
   'institution_officer',
-  'province_leader',
-  'district_leader',
-  'sector_leader',
-  'cell_leader',
-  'village_leader',
 ]);
 
 // Roles that own an institution record and may manage its Settings (services,
@@ -57,7 +52,9 @@ export function canAccessInviteSetup(role) {
 }
 
 export function getRoleDashboardPath(role) {
-  if (role === 'institution_admin') {
+  // A governance leader owns an institution, so they land on the institution
+  // dashboard like any other institution admin — case review is RIB's job.
+  if (INSTITUTION_SETTINGS_ROLES.has(role)) {
     return '/dashboard/institution';
   }
 

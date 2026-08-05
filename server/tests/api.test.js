@@ -11,7 +11,7 @@ const ACCOUNTS = {
   institutionAdmin: { email: 'institution.admin@saccfp.rw', password: 'Institution@12345', role: 'institution_admin' },
   officer1: { email: 'rib.officer1@saccfp.rw', password: 'RibOfficer1@12345', role: 'rib_officer_1' },
   officer2: { email: 'rib.officer2@saccfp.rw', password: 'RibOfficer2@12345', role: 'rib_officer_2' },
-  admin: { email: 'national.admin@citizenfirst.gov.rw', password: 'Admin@12345', role: 'national_admin' },
+  admin: { email: 'kasinelydivine30000@gmail.com', password: 'kasine2003', role: 'national_admin' },
 };
 
 async function api(path, { method = 'GET', token, body } = {}) {

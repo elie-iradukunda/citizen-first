@@ -4,36 +4,6 @@ import { ShieldCheck, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getRoleDashboardPath } from '../lib/authRouting';
 
-// The three system users from the dissertation conceptual framework (Figure 2):
-// Citizen, Institution Admin (the institution leader), and RIB (one institution
-// with its officers). These seeded accounts are ready for login during
-// presentation and testing.
-const SEEDED_ACCOUNT_GROUPS = [
-  {
-    group: 'Citizen',
-    note: 'Scans QR, views services, reports corruption, tracks the case.',
-    accounts: [
-      { label: 'Citizen Demo', email: 'citizen.demo@saccfp.rw', password: 'Citizen@12345' },
-    ],
-  },
-  {
-    group: 'Institution Admin',
-    note: 'Leader of Kacyiru Sector Office: services, staff, departments, QR.',
-    accounts: [
-      { label: 'Kacyiru Sector Office Leader', email: 'institution.admin@saccfp.rw', password: 'Institution@12345' },
-    ],
-  },
-  {
-    group: 'RIB',
-    note: 'Registers institutions, reviews reports, responds in 3 days, escalates.',
-    accounts: [
-      { label: 'RIB Admin (registers institutions + QR)', email: 'national.admin@citizenfirst.gov.rw', password: 'Admin@12345' },
-      { label: 'RIB Officer 1 (new reports + response)', email: 'rib.officer1@saccfp.rw', password: 'RibOfficer1@12345' },
-      { label: 'RIB Officer 2 (escalated cases)', email: 'rib.officer2@saccfp.rw', password: 'RibOfficer2@12345' },
-    ],
-  },
-];
-
 function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get('redirect');
@@ -198,42 +168,6 @@ function LoginPage() {
             </Link>
           </form>
 
-          <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-panel">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600">
-              Seeded presentation accounts
-            </p>
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">
-              The three system users of SACCFP. Click an account to fill the form, then sign in.
-            </p>
-
-            <div className="mt-4 space-y-4">
-              {SEEDED_ACCOUNT_GROUPS.map((group) => (
-                <div key={group.group}>
-                  <p className="text-xs font-bold text-slate-800">{group.group}</p>
-                  <p className="text-[11px] leading-4 text-slate-400">{group.note}</p>
-                  <div className="mt-2 space-y-2">
-                    {group.accounts.map((account) => (
-                      <button
-                        key={account.email}
-                        type="button"
-                        onClick={() => {
-                          setEmail(account.email);
-                          setPassword(account.password);
-                          setError('');
-                        }}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-brand-300 hover:bg-brand-50"
-                      >
-                        <span className="block text-xs font-semibold text-slate-800">{account.label}</span>
-                        <span className="mt-0.5 block break-all text-[11px] text-slate-500">
-                          {account.email} &middot; {account.password}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
           </div>
         </section>
       </div>
