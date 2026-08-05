@@ -69,12 +69,79 @@ function initResend() {
     const response = await fetch('https://api.resend.com/domains', {
       headers: { Authorization: `Bearer ${mailConfig.resendApiKey}` },
     });
-    if (!response.ok) {
-      throw new Error(`Resend API key check failed: HTTP ${response.status}`);
+    if (response.ok) {
+      return;
     }
+
+    // A sending-only key is rejected by /domains but can still deliver mail,
+    // so that specific refusal counts as a healthy transport.
+    const payload = await response.json().catch(() => ({}));
+    if (payload?.name === 'restricted_api_key') {
+      return;
+    }
+
+    throw new Error(
+      `Resend API key check failed: HTTP ${response.status}${
+        payload?.message ? ` — ${payload.message}` : ''
+      }`,
+    );
   };
 
   console.info('Email provider: Resend HTTP API');
+}
+
+// Wires a nodemailer instance up as the active transport. Shared by the Gmail
+// and generic SMTP providers, which differ only in how they are constructed.
+function useNodemailer(mailer) {
+  transport = async ({ to, subject, html, attachments }) => {
+    const info = await mailer.sendMail({
+      from: mailConfig.from,
+      to,
+      subject,
+      html,
+      ...(mailConfig.replyTo ? { replyTo: mailConfig.replyTo } : {}),
+      ...(attachments?.length
+        ? {
+            attachments: attachments.map(({ filename, contentBase64, cid }) => ({
+              filename,
+              content: Buffer.from(contentBase64, 'base64'),
+              ...(cid ? { cid, contentDisposition: 'inline' } : {}),
+            })),
+          }
+        : {}),
+    });
+
+    return { id: info.messageId };
+  };
+
+  verifyTransport = () => mailer.verify();
+}
+
+// --- Generic SMTP relay ------------------------------------------------------
+// For relays that listen on a port the host leaves open — Brevo/Mailgun on 2525,
+// for example — since Railway blocks the standard 25/465/587.
+function initSmtp() {
+  activeProvider = 'smtp';
+
+  useNodemailer(
+    nodemailer.createTransport({
+      host: mailConfig.smtpHost,
+      port: mailConfig.smtpPort,
+      secure: mailConfig.smtpSecure,
+      requireTLS: !mailConfig.smtpSecure,
+      auth: {
+        user: mailConfig.smtpUser,
+        pass: mailConfig.smtpPassword,
+      },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 8000,
+    }),
+  );
+
+  console.info(
+    `Email provider: SMTP as ${mailConfig.smtpUser} (${mailConfig.smtpHost}:${mailConfig.smtpPort})`,
+  );
 }
 
 // --- Gmail (SMTP) ------------------------------------------------------------
@@ -104,40 +171,22 @@ async function initGmail() {
     socketTimeout: 8000,
   });
 
-  transport = async ({ to, subject, html, attachments }) => {
-    const info = await gmail.sendMail({
-      from: mailConfig.from,
-      to,
-      subject,
-      html,
-      ...(mailConfig.replyTo ? { replyTo: mailConfig.replyTo } : {}),
-      ...(attachments?.length
-        ? {
-            attachments: attachments.map(({ filename, contentBase64, cid }) => ({
-              filename,
-              content: Buffer.from(contentBase64, 'base64'),
-              ...(cid ? { cid, contentDisposition: 'inline' } : {}),
-            })),
-          }
-        : {}),
-    });
-
-    return { id: info.messageId };
-  };
-
-  verifyTransport = () => gmail.verify();
+  useNodemailer(gmail);
 
   console.info(`Email provider: Gmail SMTP as ${mailConfig.gmailUser} (${smtpHost}:${smtpPort})`);
 }
 
 if (mailConfig.provider === 'resend' && mailConfig.isLive) {
   initResend();
+} else if (mailConfig.provider === 'smtp' && mailConfig.isLive) {
+  initSmtp();
 } else if (mailConfig.provider === 'gmail' && mailConfig.isLive) {
   await initGmail();
 } else {
   console.warn(
     'No live email provider is configured. Set MAIL_PROVIDER + credentials ' +
-      '(RESEND_API_KEY for Resend, or GMAIL_USER + GMAIL_APP_PASSWORD for Gmail) to send real SACCFP email.',
+      '(RESEND_API_KEY for Resend, SMTP_HOST + SMTP_USER + SMTP_PASSWORD for a generic ' +
+      'SMTP relay, or GMAIL_USER + GMAIL_APP_PASSWORD for Gmail) to send real SACCFP email.',
   );
 }
 
