@@ -3133,12 +3133,30 @@ router.delete('/institutions/:institutionId', (request, response) => {
   });
 });
 
+// Who works at a public office, and what they are responsible for, is
+// information citizens are meant to have — that is the point of the directory.
+// A national ID is not: it is the identifier used to open bank accounts and
+// SIM cards. So the record is public, the national ID is not, and it is only
+// included for an actor who may already manage that institution.
 router.get('/employees/:institutionId', (request, response) => {
-  return response.json({
-    items: institutionEmployees.filter(
-      (entry) => entry.institutionId === request.params.institutionId,
-    ),
-  });
+  const actor = resolveActor(request);
+  const institution = findInstitutionById(request.params.institutionId);
+  const canSeeInternalIdentifiers = Boolean(
+    actor && institution && canActorManageInstitution(actor, institution),
+  );
+
+  const items = institutionEmployees
+    .filter((entry) => entry.institutionId === request.params.institutionId)
+    .map((entry) => {
+      if (canSeeInternalIdentifiers) {
+        return entry;
+      }
+
+      const { nationalId, ...publicFields } = entry;
+      return publicFields;
+    });
+
+  return response.json({ items });
 });
 
 router.get('/departments/:institutionId', (request, response) => {

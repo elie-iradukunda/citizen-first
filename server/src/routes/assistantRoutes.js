@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { emergencyContacts, issueRoutingGuide, publicServices } from '../data/publicServiceData.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -193,7 +194,17 @@ async function queryGemini(payload) {
   return null;
 }
 
-router.post('/ask', async (request, response, next) => {
+// The assistant is deliberately open — a citizen must be able to ask how to
+// report before they have an account. But it forwards to a paid model, so
+// without a budget per caller it is also a free bill generator.
+const assistantLimiter = rateLimit({
+  name: 'assistant-ask',
+  max: 20,
+  windowMs: 10 * 60 * 1000,
+  message: 'Too many assistant questions. Please wait a few minutes and try again.',
+});
+
+router.post('/ask', assistantLimiter, async (request, response, next) => {
   try {
     const parseResult = askAssistantSchema.safeParse(request.body);
     if (!parseResult.success) {

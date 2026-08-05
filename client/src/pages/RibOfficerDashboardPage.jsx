@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
 import CaseChat from '../components/dashboard/CaseChat';
+import ExportButton from '../components/dashboard/ExportButton';
 import { useAuth } from '../context/AuthContext';
 import { fetchOfficerDashboard, submitOfficerComplaintResponse } from '../lib/dashboardApi';
 
@@ -393,6 +394,7 @@ function RibOfficerDashboardPage() {
           icon={Inbox}
           action={
             <div className="flex flex-wrap items-center gap-2">
+              <ExportButton dataset="cases" label="Export Cases" onError={setNotice} />
               {['all', 'submitted', 'in_review', 'escalated', 'overdue'].map((status) => (
                 <FilterChip
                   key={status}
@@ -623,7 +625,18 @@ function RibOfficerDashboardPage() {
                   {modal.data.reporterProfile.email ?? 'No email'}
                 </p>
               </div>
-            ) : null}
+            ) : (
+              // Without this the hidden reporter reads as missing data and an
+              // officer goes looking for the name elsewhere.
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-bold text-amber-900">Anonymous report — reporter protected</p>
+                <p className="mt-1.5 text-sm leading-6 text-amber-800">
+                  This citizen chose to report anonymously. Their identity and exact location are
+                  withheld from every reviewer, including national oversight. Review the case on its
+                  evidence and act on the account given here.
+                </p>
+              </div>
+            )}
 
             <div className="rounded-lg bg-mist px-4 py-3">
               <p className="text-sm font-bold text-ink">Report message</p>

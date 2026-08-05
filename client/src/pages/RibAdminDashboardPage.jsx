@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
+import ExportButton from '../components/dashboard/ExportButton';
 import {
   fetchAdminDashboard,
   startComplaintReview,
@@ -346,13 +347,25 @@ function RibAdminDashboardPage() {
           subtitle="Every institution registered by RIB with its QR access, services, and staff."
           icon={Building2}
           action={
-            <Link
-              to="/register/invite"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New Institution
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportButton
+                dataset="institutions"
+                label="Export Institutions"
+                onError={(message) => setNotice({ error: message, success: '' })}
+              />
+              <ExportButton
+                dataset="staff"
+                label="Export Staff"
+                onError={(message) => setNotice({ error: message, success: '' })}
+              />
+              <Link
+                to="/register/invite"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-brand-300 hover:text-brand-600"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Institution
+              </Link>
+            </div>
           }
         >
           <DataTable headers={['Institution', 'Level', 'Location', 'Services', 'Staff', 'QR', 'Actions']} minWidth={860}>
@@ -411,6 +424,13 @@ function RibAdminDashboardPage() {
           title="Citizen reports and corruption cases"
           subtitle="Latest reports across the RIB workflow with status, level, and deadline compliance."
           icon={ClipboardList}
+          action={
+            <ExportButton
+              dataset="cases"
+              label="Export Cases"
+              onError={(message) => setNotice({ error: message, success: '' })}
+            />
+          }
         >
           <DataTable headers={['Case ID', 'Category', 'Institution', 'Level', 'Mode', 'Status', 'Submitted', '']} minWidth={940}>
             {recentReports.map((report) => (
@@ -465,6 +485,13 @@ function RibAdminDashboardPage() {
           title="Registered citizens"
           subtitle="Citizens with verified accounts who can report and track corruption cases."
           icon={Users}
+          action={
+            <ExportButton
+              dataset="citizens"
+              label="Export Citizens"
+              onError={(message) => setNotice({ error: message, success: '' })}
+            />
+          }
         >
           <DataTable headers={['Citizen', 'National ID', 'Phone', 'Location', 'Status', '']} minWidth={780}>
             {citizens.map((citizen) => (

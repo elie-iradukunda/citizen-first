@@ -19,6 +19,7 @@ import {
 import QrScanPanel from '../components/QrScanPanel';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
 import CaseChat from '../components/dashboard/CaseChat';
+import ExportButton from '../components/dashboard/ExportButton';
 import {
   acceptCitizenFeedback,
   escalateCitizenComplaint,
@@ -1841,14 +1842,23 @@ export function CitizenMyReportsPage() {
         title="Your reports, RIB responses, and escalation state"
         description="Every case stays visible with status, deadline, response, evidence, and escalation options — no repeated office visits."
         actions={
-          <Link
-            to="/dashboard/citizen/submit"
-            className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition hover:bg-emerald-50"
-            style={{ color: BRAND }}
-          >
-            <Send className="h-4 w-4" />
-            New Report
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-lg bg-white/95">
+              <ExportButton
+                dataset="cases"
+                label="Export My Reports"
+                onError={setActionError}
+              />
+            </div>
+            <Link
+              to="/dashboard/citizen/submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold shadow-sm transition hover:bg-emerald-50"
+              style={{ color: BRAND }}
+            >
+              <Send className="h-4 w-4" />
+              New Report
+            </Link>
+          </div>
         }
       />
 

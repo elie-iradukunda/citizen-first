@@ -4,7 +4,19 @@ import { getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { complaints, escalations, institutions, officers } from '../data/mockData.js';
 import { sendEmailInBackground, templates } from '../services/emailService.js';
 import {
+  CASE_COLUMNS,
+  CITIZEN_COLUMNS,
+  INSTITUTION_COLUMNS,
+  STAFF_COLUMNS,
+  sendCsv,
+  toCaseRow,
+  toCitizenRow,
+  toInstitutionRow,
+  toStaffRow,
+} from '../services/exportService.js';
+import {
   RWANDA_ADMINISTRATIVE_STRUCTURE,
+  institutionDepartments,
   institutionEmployees,
   institutionInvites,
   institutionStaffServiceLinks,
@@ -978,7 +990,7 @@ function getLeaderChainByCitizenLocation(location = {}) {
           ? {
               employeeId: leader.employeeId,
               fullName: leader.fullName,
-              nationalId: leader.nationalId,
+              // National IDs are never shown in the citizen-facing directory.
               phone: leader.phone,
               email: leader.email,
               positionTitle: leader.positionTitle,
@@ -1059,7 +1071,46 @@ function serializeLeaderChainEntry(entry) {
   };
 }
 
-function buildComplaintSummary(item) {
+// A citizen who chooses "anonymous" is usually reporting the very office that
+// would receive their name, so the promise has to hold against the reviewers
+// too — not just against outsiders. Everything that points back at the person
+// is stripped unless the viewer IS that person looking at their own case.
+//
+// `viewer` is the authenticated user. It defaults to nobody, so any call site
+// that forgets to pass one redacts rather than leaks.
+function redactAnonymousReporter(summary, item, viewer = null) {
+  if ((item.reportingMode ?? 'verified') !== 'anonymous') {
+    return summary;
+  }
+
+  const isOwnReport =
+    Boolean(viewer?.userId) && Boolean(item.reporterUserId) && viewer.userId === item.reporterUserId;
+  if (isOwnReport) {
+    return summary;
+  }
+
+  return {
+    ...summary,
+    reporterProfile: null,
+    // Derived from the reporter's account id, so it links their cases together.
+    citizenReference: null,
+    // Village-level detail identifies a person in a small community; the
+    // district is enough for routing and for the analytics that use it.
+    location: {
+      country: summary.location?.country ?? 'Rwanda',
+      province: summary.location?.province ?? '',
+      district: summary.location?.district ?? '',
+      sector: '',
+      cell: '',
+      village: '',
+    },
+    messages: (summary.messages ?? []).map((entry) =>
+      entry.sender === 'citizen' ? { ...entry, senderName: 'Anonymous reporter' } : entry,
+    ),
+  };
+}
+
+function buildComplaintSummary(item, viewer = null) {
   const sourceInstitution =
     item.sourceInstitutionId || item.sourceInstitutionName
       ? {
@@ -1070,7 +1121,7 @@ function buildComplaintSummary(item) {
         }
       : null;
 
-  return {
+  const summary = {
     id: item.id,
     issueType: item.issueType ?? 'service_issue',
     category: item.category,
@@ -1131,6 +1182,8 @@ function buildComplaintSummary(item) {
       createdAt: entry.createdAt,
     })),
   };
+
+  return redactAnonymousReporter(summary, item, viewer);
 }
 
 function matchesCitizenHierarchyScope(location = {}, filters = {}) {
@@ -1154,7 +1207,7 @@ function buildInstitutionHelpLeader(institution) {
   return {
     employeeId: leader.employeeId,
     fullName: leader.fullName,
-    nationalId: leader.nationalId,
+    // National IDs are never shown in the citizen-facing directory.
     phone: leader.phone,
     email: leader.email,
     positionTitle: leader.positionTitle,
@@ -1178,7 +1231,7 @@ function buildInstitutionAccountabilityContacts(institution) {
     .map((employee) => ({
       employeeId: employee.employeeId,
       fullName: employee.fullName,
-      nationalId: employee.nationalId,
+      // National IDs are never shown in the citizen-facing directory.
       phone: employee.phone,
       email: employee.email,
       positionTitle: employee.positionTitle,
@@ -1354,20 +1407,46 @@ function getDestinationForLevel(level, location = {}, leaderChain = getLeaderCha
   return findLeaderChainEntryByLevel(leaderChain, level);
 }
 
+// Notifications are addressed by user id, so this is the one place that has to
+// build them — whether the recipient is a reviewing officer or the citizen who
+// filed the case.
+function addNotification({ userId, complaintRecord, message, leaderEmployeeId = null }) {
+  if (!userId) {
+    return;
+  }
+
+  citizenIssueNotifications.unshift({
+    id: `NTF-${String(citizenIssueNotifications.length + 1).padStart(5, '0')}`,
+    userId,
+    complaintId: complaintRecord.id,
+    complaintLevel: complaintRecord.currentLevel,
+    message,
+    status: 'unread',
+    createdAt: new Date().toISOString(),
+    leaderEmployeeId,
+  });
+}
+
+// The citizen had no in-app signal at all before this: they were emailed and
+// otherwise had to keep re-opening the case to notice movement.
+function notifyReporter(complaintRecord, message) {
+  addNotification({
+    userId: complaintRecord.reporterUserId,
+    complaintRecord,
+    message,
+  });
+}
+
 function notifyComplaintRecipient(recipientId, complaintRecord, message) {
   const recipientUser = findSystemUserByAssignmentId(recipientId);
   if (!recipientUser) {
     return;
   }
 
-  citizenIssueNotifications.unshift({
-    id: `NTF-${String(citizenIssueNotifications.length + 1).padStart(5, '0')}`,
+  addNotification({
     userId: recipientUser.userId,
-    complaintId: complaintRecord.id,
-    complaintLevel: complaintRecord.currentLevel,
+    complaintRecord,
     message,
-    status: 'unread',
-    createdAt: new Date().toISOString(),
     leaderEmployeeId: recipientId,
   });
 
@@ -1696,7 +1775,9 @@ function buildCitizenDashboard(user) {
         note: 'Typical closure time for resolved records',
       },
     ],
-    cases: citizenCases.map((item) => buildComplaintSummary(item)),
+    // The citizen is the reporter here, so their own anonymous reports stay
+    // fully visible to them.
+    cases: citizenCases.map((item) => buildComplaintSummary(item, user)),
     timeline: citizenCases.slice(0, 5).map((item) => ({
       title: `${item.id} updated`,
       detail: item.response
@@ -2666,7 +2747,7 @@ router.post('/citizen/complaints', (request, response) => {
 
   return response.status(201).json({
     message: 'Complaint submitted successfully and routed to the correct review level.',
-    item: buildComplaintSummary(complaintRecord),
+    item: buildComplaintSummary(complaintRecord, request.auth.user),
   });
 });
 
@@ -2721,7 +2802,7 @@ router.post('/citizen/complaints/:complaintId/accept-feedback', (request, respon
 
   return response.json({
     message: 'Feedback accepted and complaint closed successfully.',
-    item: buildComplaintSummary(complaint),
+    item: buildComplaintSummary(complaint, request.auth.user),
   });
 });
 
@@ -2799,7 +2880,7 @@ router.post('/citizen/complaints/:complaintId/escalate', (request, response) => 
 
   return response.json({
     message: `Complaint escalated to ${nextLevel} successfully.`,
-    item: buildComplaintSummary(complaint),
+    item: buildComplaintSummary(complaint, request.auth.user),
   });
 });
 
@@ -2881,6 +2962,11 @@ router.post('/officer/complaints/:complaintId/respond', (request, response) => {
   complaint.feedbackStatus = 'pending_citizen';
   complaint.updatedAt = now.toISOString();
 
+  notifyReporter(
+    complaint,
+    `RIB responded to ${complaint.id}. You can now accept the outcome or escalate it.`,
+  );
+
   if (complaint.reporterProfile?.email) {
     sendEmailInBackground(
       complaint.reporterProfile.email,
@@ -2939,6 +3025,7 @@ router.post('/officer/complaints/:complaintId/start-review', (request, response)
   complaint.status = 'in_review';
   complaint.updatedAt = now.toISOString();
   complaint.reviewStartedAt = complaint.reviewStartedAt ?? now.toISOString();
+  notifyReporter(complaint, `${complaint.id} is now under investigation by RIB.`);
   complaint.progressNotes = [
     ...(complaint.progressNotes ?? []),
     {
@@ -3027,6 +3114,16 @@ router.post('/complaints/:complaintId/messages', (request, response) => {
   complaint.messages = [...(complaint.messages ?? []), messageRecord];
   complaint.updatedAt = now.toISOString();
 
+  if (sender === 'rib') {
+    notifyReporter(complaint, `New message from RIB on ${complaint.id}.`);
+  } else {
+    notifyComplaintRecipient(
+      complaint.assignedOfficerId,
+      complaint,
+      `The citizen replied on ${complaint.id}.`,
+    );
+  }
+
   // Let the citizen know by email when the RIB officer adds a chat message.
   if (sender === 'rib' && complaint.reporterProfile?.email) {
     sendEmailInBackground(
@@ -3042,7 +3139,7 @@ router.post('/complaints/:complaintId/messages', (request, response) => {
 
   return response.json({
     message: 'Message sent.',
-    item: buildComplaintSummary(complaint),
+    item: buildComplaintSummary(complaint, request.auth.user),
   });
 });
 
@@ -3055,6 +3152,143 @@ router.get('/admin', (request, response) => {
   }
 
   response.json(buildAdminDashboard());
+});
+
+// Works for every role: notifications are addressed by user id, so the caller
+// can only ever read their own.
+router.get('/notifications', (request, response) => {
+  const userId = request.auth.user.userId;
+  const items = citizenIssueNotifications
+    .filter((entry) => entry.userId === userId)
+    .slice(0, 30);
+
+  return response.json({
+    unreadCount: items.filter((entry) => entry.status === 'unread').length,
+    items,
+  });
+});
+
+router.post('/notifications/read', (request, response) => {
+  const userId = request.auth.user.userId;
+  let updated = 0;
+
+  for (const entry of citizenIssueNotifications) {
+    if (entry.userId === userId && entry.status === 'unread') {
+      entry.status = 'read';
+      updated += 1;
+    }
+  }
+
+  return response.json({ message: 'Notifications marked as read.', updated });
+});
+
+// --- Spreadsheet exports ---
+//
+// Each dataset is assembled from the same builders the dashboards use, so an
+// export can never widen what a role is allowed to see — and anonymous
+// reporters stay redacted in the file, because the rows are built from
+// already-redacted summaries rather than from the raw records.
+
+function collectCasesForExport(user) {
+  const role = user.role;
+
+  if (CITIZEN_DASHBOARD_ROLES.has(role)) {
+    return buildCitizenDashboard(user).cases;
+  }
+
+  if (ADMIN_DASHBOARD_ROLES.has(role)) {
+    synchronizeCitizenWorkflowComplaints();
+    return complaints.map((item) => buildComplaintSummary(item));
+  }
+
+  if (OFFICER_DASHBOARD_ROLES.has(role)) {
+    synchronizeCitizenWorkflowComplaints();
+    // The officer dashboard trims its queue for display; an export is meant to
+    // be complete, so this re-derives the full in-scope set with the same rule.
+    return complaints
+      .filter((item) => canUserReviewComplaint(user, item))
+      .map((item) => buildComplaintSummary(item));
+  }
+
+  return null;
+}
+
+router.get('/exports/cases', (request, response) => {
+  const rows = collectCasesForExport(request.auth.user);
+  if (!rows) {
+    return response.status(403).json({
+      message: 'Case export is not available for your role.',
+    });
+  }
+
+  return sendCsv(response, 'saccfp-cases', CASE_COLUMNS, rows.map((item) => toCaseRow(item)));
+});
+
+router.get('/exports/institutions', (request, response) => {
+  const user = request.auth.user;
+  const isAdmin = ADMIN_DASHBOARD_ROLES.has(user.role);
+
+  if (!isAdmin && !OFFICER_DASHBOARD_ROLES.has(user.role) && user.role !== 'institution_admin') {
+    return response.status(403).json({
+      message: 'Institution export is not available for your role.',
+    });
+  }
+
+  const items = isAdmin ? registeredInstitutions : filterInstitutionsForScope(user);
+
+  return sendCsv(
+    response,
+    'saccfp-institutions',
+    INSTITUTION_COLUMNS,
+    items.map((item) => toInstitutionRow(item)),
+  );
+});
+
+router.get('/exports/staff', (request, response) => {
+  const user = request.auth.user;
+  const isAdmin = ADMIN_DASHBOARD_ROLES.has(user.role);
+
+  if (!isAdmin && !OFFICER_DASHBOARD_ROLES.has(user.role) && user.role !== 'institution_admin') {
+    return response.status(403).json({
+      message: 'Staff export is not available for your role.',
+    });
+  }
+
+  const scopedInstitutions = isAdmin ? registeredInstitutions : filterInstitutionsForScope(user);
+  const institutionNames = new Map(
+    scopedInstitutions.map((entry) => [entry.institutionId, entry.institutionName]),
+  );
+  const departmentNames = new Map(
+    institutionDepartments.map((entry) => [entry.departmentId, entry.name]),
+  );
+
+  const rows = institutionEmployees
+    .filter((entry) => institutionNames.has(entry.institutionId))
+    .map((entry) =>
+      toStaffRow(
+        entry,
+        institutionNames.get(entry.institutionId),
+        entry.departmentId ? departmentNames.get(entry.departmentId) : '',
+      ),
+    );
+
+  return sendCsv(response, 'saccfp-staff', STAFF_COLUMNS, rows);
+});
+
+// Citizen records carry national IDs, so this stays with national oversight.
+router.get('/exports/citizens', (request, response) => {
+  if (!ADMIN_DASHBOARD_ROLES.has(request.auth.user.role)) {
+    return response.status(403).json({
+      message: 'Only national oversight can export citizen records.',
+    });
+  }
+
+  return sendCsv(
+    response,
+    'saccfp-citizens',
+    CITIZEN_COLUMNS,
+    registeredCitizens.map((item) => toCitizenRow(item)),
+  );
 });
 
 export default router;

@@ -14,6 +14,7 @@ import {
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
 import DetailsModal, { DetailRow } from '../components/dashboard/DetailsModal';
+import ExportButton from '../components/dashboard/ExportButton';
 import { useAuth } from '../context/AuthContext';
 import {
   createInstitutionDepartment,
@@ -822,6 +823,13 @@ function InstitutionAdminDashboardPage() {
           title="Register staff"
           subtitle="You (the institution admin) add each staff member so citizens can see who delivers each service. Staff do not need to log in — a platform account is optional."
           className="mt-6"
+          actions={
+            <ExportButton
+              dataset="staff"
+              label="Export Staff"
+              onError={(message) => setFeedback('staff', message, '')}
+            />
+          }
         >
           <form className="mt-6 grid gap-4 lg:grid-cols-3" onSubmit={addStaff}>
             <TextInput

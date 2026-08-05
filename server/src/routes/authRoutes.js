@@ -9,6 +9,7 @@ import {
 } from '../data/registrationData.js';
 import { createSession, removeSession, removeSessionsForUser } from '../data/sessionStore.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
+import { rateLimit, resetRateLimit } from '../middleware/rateLimit.js';
 import { getClientBaseUrl } from '../config/publicBaseUrl.js';
 import { isEmailLive, sendEmailInBackground, templates } from '../services/emailService.js';
 
@@ -18,6 +19,30 @@ const router = Router();
 // token itself so a lookup cannot be done from the email address alone.
 const passwordResetTokens = new Map();
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+// Anything that is not an explicit development run is treated as production.
+// Defaulting the other way would mean a deployment that simply forgot to set
+// NODE_ENV silently exposes reset links.
+function isProductionEnvironment() {
+  const environment = process.env.NODE_ENV ?? '';
+  return environment !== 'development' && environment !== 'test';
+}
+
+// Password guessing is the cheapest attack on this platform, so both the login
+// and the reset-request endpoints get a budget per caller.
+const loginLimiter = rateLimit({
+  name: 'auth-login',
+  max: 10,
+  windowMs: 15 * 60 * 1000,
+  message: 'Too many sign-in attempts. Please wait 15 minutes and try again.',
+});
+
+const passwordResetLimiter = rateLimit({
+  name: 'auth-password-reset',
+  max: 5,
+  windowMs: 15 * 60 * 1000,
+  message: 'Too many password reset requests. Please wait 15 minutes and try again.',
+});
 
 function consumeResetToken(token) {
   const entry = passwordResetTokens.get(token);
@@ -96,7 +121,7 @@ export function buildSafeUserProfile(user) {
   };
 }
 
-router.post('/login', (request, response) => {
+router.post('/login', loginLimiter, (request, response) => {
   const parseResult = loginSchema.safeParse(request.body);
   if (!parseResult.success) {
     return response.status(400).json({
@@ -129,6 +154,10 @@ router.post('/login', (request, response) => {
     }
   }
 
+  // The budget exists to slow down guessing, not to punish a whole office that
+  // shares one public address, so a real sign-in clears it.
+  resetRateLimit('auth-login', request);
+
   const token = crypto.randomBytes(24).toString('hex');
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -156,7 +185,7 @@ const resetPasswordSchema = z.object({
 
 // Always answers the same way whether or not the address belongs to an account,
 // so this endpoint cannot be used to discover who is registered.
-router.post('/forgot-password', (request, response) => {
+router.post('/forgot-password', passwordResetLimiter, (request, response) => {
   const parseResult = forgotPasswordSchema.safeParse(request.body);
   if (!parseResult.success) {
     return response.status(400).json({
@@ -199,10 +228,23 @@ router.post('/forgot-password', (request, response) => {
     }),
   );
 
-  // With no mail provider configured the link could never reach anyone, so it
-  // is returned directly — otherwise it is only ever sent to the mailbox.
-  if (!isEmailLive()) {
+  // In local development, with no mail provider configured, the link could
+  // never reach anyone — so it is returned directly to keep the flow testable.
+  //
+  // It must NEVER be returned outside development: the response would hand any
+  // anonymous caller a working reset link for any address they name, which is a
+  // complete account takeover (national admin included). A hosted deployment
+  // whose SMTP is misconfigured still counts as production, so this is keyed on
+  // the environment rather than on whether mail happens to be working.
+  if (!isEmailLive() && !isProductionEnvironment()) {
     return response.json({ ...genericResponse, resetLink });
+  }
+
+  if (!isEmailLive()) {
+    console.error(
+      '[auth] Password reset requested but no mail provider is configured. ' +
+        'The user cannot receive the link. Configure RESEND_API_KEY or GMAIL_* credentials.',
+    );
   }
 
   return response.json(genericResponse);

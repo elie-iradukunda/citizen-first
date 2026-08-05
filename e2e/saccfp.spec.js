@@ -20,6 +20,22 @@ async function login(page, { email, password }) {
   await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 20_000 });
 }
 
+// Seeded institution IDs change as the seed evolves, so ask the API which
+// offices actually exist rather than pinning a slug into the test.
+async function discoverInstitutionSlug(page) {
+  try {
+    const res = await page.request.get('/api/institutions');
+    const data = await res.json();
+    if (Array.isArray(data.items) && data.items[0]?.slug) {
+      return data.items[0].slug;
+    }
+  } catch {
+    /* fall through to the seeded default */
+  }
+
+  return 'kacyiru-sector-office';
+}
+
 test('public home page loads', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('body')).toContainText(/SACCFP|corruption|report/i);
@@ -80,7 +96,12 @@ test('citizen can navigate every citizen sub-page', async ({ page }) => {
 
 test('citizen can submit a corruption report through the dashboard (CRUD create)', async ({ page }) => {
   await login(page, ACCOUNTS.citizen);
-  await page.goto('/dashboard/citizen/submit');
+
+  // The submit page opens on a choice between scanning an office QR code and
+  // reporting someone who holds no public post. Land on a real institution so
+  // the form loads that office's actual staff to accuse.
+  const slug = await discoverInstitutionSlug(page);
+  await page.goto(`/dashboard/citizen/submit?institution=${slug}`);
   await page.waitForLoadState('networkidle');
   await shot(page, '06-citizen-submit-form');
 
@@ -100,6 +121,29 @@ test('citizen can submit a corruption report through the dashboard (CRUD create)
   // success confirmation shows the generated case id
   await expect(page.locator('body')).toContainText(/Submitted:\s*CF-\d{4}|three-day response/i);
   await shot(page, '07-citizen-submit-success');
+});
+
+test('citizen can report someone who holds no public post (manual mode)', async ({ page }) => {
+  await login(page, ACCOUNTS.citizen);
+
+  await page.goto('/dashboard/citizen/submit');
+  await page.waitForLoadState('networkidle');
+
+  // The gate itself is the thing under test here: choosing "report without a
+  // QR code" must open the form for naming an unregistered person. That form
+  // has no issue-type selector — it is always a corruption report.
+  await page.getByRole('button', { name: /report without a qr code|write the report/i }).click();
+
+  const reportedPerson = page.locator('input[name="reportedPersonName"]');
+  await expect(reportedPerson).toBeVisible();
+  await reportedPerson.fill('Broker known as Kalisa');
+  await page.locator('input[name="reportedPersonPhone"]').fill('+250788112233');
+  await page.locator('textarea[name="message"]').fill(
+    'A broker outside the district office asked me for money to speed up my file. He does not work there and there was no QR code to scan. Automated end-to-end test.',
+  );
+  await page.getByRole('button', { name: /send report to rib/i }).click();
+
+  await expect(page.locator('body')).toContainText(/Submitted:\s*CF-\d{4}|three-day response/i);
 });
 
 test('institution admin dashboard loads and generates a real QR code', async ({ page }) => {

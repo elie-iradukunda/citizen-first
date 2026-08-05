@@ -3,9 +3,10 @@ import {
   UserCog, Link2, Inbox, ShieldCheck, Clock, CornerUpRight, Activity, CheckCircle2,
   Bell, ChevronDown, LogOut, Menu, X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { fetchNotifications, markNotificationsRead } from '../../lib/dashboardApi';
 
 const BRAND = { primary: '#087536', dark: '#075126' };
 
@@ -104,6 +105,11 @@ function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const headerRef = useRef(null);
   const role = user?.role ?? 'citizen';
   const dashboardLinks = dashboardLinksByRole[role] ?? dashboardLinksByRole.citizen;
   const workspaceLabel = levelWorkspaceLabels[role] ?? 'Dashboard Console';
@@ -112,6 +118,72 @@ function DashboardLayout() {
     await logout();
     navigate('/login');
   };
+
+  const loadNotifications = useCallback(() => {
+    if (!user) {
+      return;
+    }
+
+    fetchNotifications()
+      .then((payload) => {
+        setNotifications(payload.items ?? []);
+        setUnreadCount(payload.unreadCount ?? 0);
+      })
+      // A failed poll must never break the page the user is working in.
+      .catch(() => undefined);
+  }, [user]);
+
+  useEffect(() => {
+    loadNotifications();
+    const intervalId = window.setInterval(loadNotifications, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [loadNotifications]);
+
+  // Opening the panel is the acknowledgement, so the badge clears then.
+  useEffect(() => {
+    if (!notificationsOpen || unreadCount === 0) {
+      return;
+    }
+
+    markNotificationsRead()
+      .then(() => setUnreadCount(0))
+      .catch(() => undefined);
+  }, [notificationsOpen, unreadCount]);
+
+  // Both menus are absolutely positioned overlays; without this they stay open
+  // behind whatever the user clicks next.
+  useEffect(() => {
+    if (!notificationsOpen && !profileMenuOpen) {
+      return undefined;
+    }
+
+    const onDocumentClick = (event) => {
+      if (!headerRef.current?.contains(event.target)) {
+        setNotificationsOpen(false);
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setNotificationsOpen(false);
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onDocumentClick);
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('mousedown', onDocumentClick);
+      document.removeEventListener('keydown', onEscape);
+    };
+  }, [notificationsOpen, profileMenuOpen]);
+
+  // Route changes should not leave a menu hanging open over the new page.
+  useEffect(() => {
+    setNotificationsOpen(false);
+    setProfileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!location.hash) return undefined;
@@ -188,7 +260,7 @@ function DashboardLayout() {
         ) : null}
 
         <div className="min-w-0 lg:col-start-2">
-          <header className="sticky top-0 z-30 h-[76px] border-b border-slate-200 bg-white/95 backdrop-blur">
+          <header ref={headerRef} className="sticky top-0 z-30 h-[76px] border-b border-slate-200 bg-white/95 backdrop-blur">
             <div className="flex h-full items-center gap-4 px-4 sm:px-6 xl:px-8">
               <button type="button" onClick={() => setMobileMenuOpen(true)} className="rounded-lg border border-slate-200 p-2.5 text-slate-600 lg:hidden">
                 <Menu className="h-5 w-5" />
@@ -201,20 +273,103 @@ function DashboardLayout() {
                 <Link to="/" className="hidden rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-200 hover:text-brand-600 sm:inline-flex">
                   Public Site
                 </Link>
-                <button type="button" className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100">
-                  <Bell className="h-[18px] w-[18px]" />
-                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: BRAND.primary }} />
-                </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotificationsOpen((open) => !open);
+                      setProfileMenuOpen(false);
+                    }}
+                    aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+                    aria-expanded={notificationsOpen}
+                    className="relative rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
+                  >
+                    <Bell className="h-[18px] w-[18px]" />
+                    {/* The dot used to be painted on unconditionally, so it
+                        signalled "unread" even with an empty inbox. */}
+                    {unreadCount > 0 ? (
+                      <span
+                        className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
+                        style={{ backgroundColor: BRAND.primary }}
+                      >
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    ) : null}
+                  </button>
+
+                  {notificationsOpen ? (
+                    <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <div className="border-b border-slate-100 px-4 py-3">
+                        <p className="text-xs font-bold text-slate-800">Notifications</p>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <p className="px-4 py-6 text-center text-xs text-slate-400">
+                            No notifications yet.
+                          </p>
+                        ) : (
+                          notifications.map((item) => (
+                            <div key={item.id} className="border-b border-slate-50 px-4 py-3 last:border-0">
+                              <p className="text-[13px] leading-5 text-slate-700">{item.message}</p>
+                              <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                                {item.complaintId ? `${item.complaintId} · ` : ''}
+                                {new Date(item.createdAt).toLocaleString('en-US', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="h-8 w-px bg-slate-200" />
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ backgroundColor: BRAND.primary }}>
-                    {initials(user?.fullName)}
-                  </span>
-                  <div className="hidden sm:block">
-                    <p className="text-xs font-semibold text-slate-800">{user?.fullName}</p>
-                    <p className="text-[10px] text-slate-400">{workspaceLabel}</p>
-                  </div>
-                  <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen((open) => !open);
+                      setNotificationsOpen(false);
+                    }}
+                    aria-expanded={profileMenuOpen}
+                    className="flex items-center gap-2.5 rounded-lg px-1 py-1 transition hover:bg-slate-50"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ backgroundColor: BRAND.primary }}>
+                      {initials(user?.fullName)}
+                    </span>
+                    <div className="hidden text-left sm:block">
+                      <p className="text-xs font-semibold text-slate-800">{user?.fullName}</p>
+                      <p className="text-[10px] text-slate-400">{workspaceLabel}</p>
+                    </div>
+                    <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
+                  </button>
+
+                  {profileMenuOpen ? (
+                    <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <div className="border-b border-slate-100 px-4 py-3">
+                        <p className="text-[13px] font-bold text-slate-800">{user?.fullName}</p>
+                        <p className="mt-0.5 break-all text-[11px] text-slate-400">{user?.email}</p>
+                        <p className="mt-1.5 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          {String(user?.role ?? '').replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onLogout}
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-50"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Log out
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

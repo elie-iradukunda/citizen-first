@@ -190,8 +190,10 @@ describe('Public complaints CRUD', () => {
     createdId = data.item.id;
   });
 
-  test('GET /complaints returns the created complaint', async () => {
-    const { status, data } = await api('/complaints');
+  // Listing every case is an oversight action: the records carry reporter
+  // identity and evidence, so this is no longer an open endpoint.
+  test('GET /complaints returns the created complaint to national oversight', async () => {
+    const { status, data } = await api('/complaints', { token: tokens.admin });
     assert.equal(status, 200);
     assert.ok(data.items.some((c) => c.id === createdId));
   });
@@ -877,5 +879,380 @@ describe('Full lifecycle: RIB -> institution -> citizen -> corruption resolved',
       body: { email: staffEmail, password: staffPassword },
     });
     assert.equal(staffLoginAfter.status, 401, 'staff accounts must be deactivated after institution delete');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Security and privacy regressions.
+//
+// Each test below corresponds to a defect that was live in this codebase and
+// was reproduced by hand against a running server before being fixed. They
+// assert the property that was broken, not the implementation that fixes it.
+// ---------------------------------------------------------------------------
+
+async function seedCitizenCase(token, { reportingMode, message }) {
+  const context = await api('/dashboard/citizen/context', { token });
+  const target = context.data.complaintTargetLeaders?.[0];
+  assert.ok(target, 'citizen context must offer a receiving leader');
+
+  const created = await api('/dashboard/citizen/complaints', {
+    method: 'POST',
+    token,
+    body: {
+      issueType: 'service_issue',
+      category: 'Poor service or refusal to serve',
+      message,
+      reportingMode,
+      targetLeaderEmployeeId: target.leader.employeeId,
+    },
+  });
+
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  return created.data.item.id;
+}
+
+describe('Security: case data is not publicly readable', () => {
+  test('listing every case requires authentication', async () => {
+    const { status } = await api('/complaints');
+    assert.equal(status, 401, 'anonymous callers must not be able to list cases');
+  });
+
+  test('listing every case is refused for non-oversight roles', async () => {
+    for (const role of ['citizen', 'officer1', 'institutionAdmin']) {
+      const { status } = await api('/complaints', { token: tokens[role] });
+      assert.equal(status, 403, `${role} must not be able to list every case`);
+    }
+
+    const { status } = await api('/complaints', { token: tokens.admin });
+    assert.equal(status, 200, 'national oversight may list cases');
+  });
+
+  test('public case tracking exposes progress only, never reporter or evidence', async () => {
+    const caseId = await seedCitizenCase(tokens.citizen, {
+      reportingMode: 'verified',
+      message: 'Public tracking regression: the desk refused to serve me without a payment.',
+    });
+
+    // Look the case up the way the public /track page does: no credentials.
+    const { status, data } = await api(`/complaints/${caseId}`);
+    assert.equal(status, 200, 'a citizen must still be able to track their case ID');
+    assert.equal(data.item.id, caseId);
+    assert.ok(data.item.status, 'progress fields must survive');
+
+    for (const field of [
+      'reporterProfile',
+      'message',
+      'evidenceImage',
+      'evidenceDocument',
+      'voiceNote',
+      'accusedLeaders',
+      'location',
+      'reporterUserId',
+      'responses',
+      'progressNotes',
+      'reportedPersonPhone',
+    ]) {
+      assert.equal(
+        data.item[field],
+        undefined,
+        `public case lookup must not expose "${field}" to an unauthenticated caller`,
+      );
+    }
+  });
+});
+
+describe('Security: password reset cannot be used to take over an account', () => {
+  test('forgot-password never returns the reset link outside development', async () => {
+    const { status, data } = await api('/auth/forgot-password', {
+      method: 'POST',
+      body: { email: ACCOUNTS.admin.email },
+    });
+
+    assert.equal(status, 200);
+    assert.equal(
+      data.resetLink,
+      undefined,
+      'returning the reset link lets any anonymous caller seize any account',
+    );
+    assert.ok(data.message, 'the generic acknowledgement must still be returned');
+  });
+
+  test('forgot-password still does not reveal whether an address is registered', async () => {
+    const known = await api('/auth/forgot-password', {
+      method: 'POST',
+      body: { email: ACCOUNTS.admin.email },
+    });
+    const unknown = await api('/auth/forgot-password', {
+      method: 'POST',
+      body: { email: 'nobody.at.all@example.com' },
+    });
+
+    assert.equal(known.status, unknown.status);
+    assert.deepEqual(known.data, unknown.data, 'responses must be indistinguishable');
+  });
+});
+
+describe('Privacy: anonymous reporting actually hides the reporter', () => {
+  let anonymousCaseId;
+
+  before(async () => {
+    anonymousCaseId = await seedCitizenCase(tokens.citizen, {
+      reportingMode: 'anonymous',
+      message: 'Anonymity regression: I was told to pay extra before being served at the desk.',
+    });
+  });
+
+  test('the reporter still sees their own anonymous case in full', async () => {
+    const { data } = await api('/dashboard/citizen', { token: tokens.citizen });
+    const own = (data.cases ?? []).find((entry) => entry.id === anonymousCaseId);
+
+    assert.ok(own, 'the reporter must still find their own case');
+    assert.ok(own.reporterProfile, 'a reporter is not anonymous to themselves');
+  });
+
+  test('no reviewing role can see who filed an anonymous report', async () => {
+    let checkedAtLeastOne = false;
+
+    for (const role of ['officer1', 'officer2', 'admin']) {
+      const path = role === 'admin' ? '/dashboard/admin' : '/dashboard/officer';
+      const { data } = await api(path, { token: tokens[role] });
+
+      const pool = [
+        ...(data.queue ?? []),
+        ...(data.citizenTaggedIssues ?? []),
+        ...(data.recentReports ?? []),
+        ...(data.escalationWatch ?? []),
+        ...(data.recentResolved ?? []),
+      ];
+      const seen = pool.find((entry) => entry.id === anonymousCaseId);
+      if (!seen) {
+        continue;
+      }
+
+      checkedAtLeastOne = true;
+      // Some dashboards omit the field entirely rather than nulling it; either
+      // way the identity must not be present.
+      assert.ok(
+        !seen.reporterProfile,
+        `${role} must not receive the identity of an anonymous reporter`,
+      );
+      assert.ok(
+        !seen.citizenReference,
+        `${role} must not receive a reference that links the reporter's cases`,
+      );
+      // Village-level detail identifies a person in a small community.
+      assert.ok(!seen.location?.village, `${role} must not receive the reporter's village`);
+      assert.ok(!seen.location?.cell, `${role} must not receive the reporter's cell`);
+    }
+
+    assert.ok(checkedAtLeastOne, 'the anonymous case must reach at least one reviewer to be meaningful');
+  });
+
+  test('a verified report still carries its reporter, so follow-up remains possible', async () => {
+    const caseId = await seedCitizenCase(tokens.citizen, {
+      reportingMode: 'verified',
+      message: 'Verified control case: I am willing to be contacted about this service problem.',
+    });
+
+    const { data } = await api('/dashboard/officer', { token: tokens.officer1 });
+    const seen = (data.queue ?? []).find((entry) => entry.id === caseId);
+    if (seen) {
+      assert.ok(seen.reporterProfile, 'a verified reporter must stay contactable by the reviewer');
+    }
+  });
+});
+
+describe('Privacy: national IDs are not handed to unauthorised callers', () => {
+  test('the public staff directory omits national IDs', async () => {
+    const { status, data } = await api('/registration/employees/RIB-INTAKE');
+
+    assert.equal(status, 200, 'the staff directory itself is public information');
+    assert.ok(data.items.length > 0, 'the directory must still list staff');
+
+    for (const employee of data.items) {
+      assert.equal(
+        employee.nationalId,
+        undefined,
+        'a national ID must never be published in the open directory',
+      );
+      assert.ok(employee.fullName, 'the public record must still name the officer');
+      assert.ok(employee.positionTitle, 'the public record must still state the role');
+    }
+  });
+
+  test('an institution manager still sees national IDs for their own staff', async () => {
+    const { status, data } = await api('/registration/employees/GOV-KACYIRU-SECTOR', {
+      token: tokens.institutionAdmin,
+    });
+
+    assert.equal(status, 200);
+    assert.ok(
+      data.items.some((employee) => employee.nationalId),
+      'the managing institution still needs the identifier it registered',
+    );
+  });
+
+  test('the citizen-facing institution directory omits national IDs', async () => {
+    const { data } = await api('/dashboard/citizen/context', { token: tokens.citizen });
+
+    const contacts = (data.institutionDirectory ?? []).flatMap(
+      (entry) => entry.accountabilityContacts ?? [],
+    );
+    assert.ok(contacts.length > 0, 'citizens must still see who is accountable');
+
+    for (const contact of contacts) {
+      assert.equal(contact.nationalId, undefined, 'citizens do not need staff national IDs');
+    }
+
+    for (const entry of data.leaderChain ?? []) {
+      assert.equal(
+        entry.leader?.nationalId,
+        undefined,
+        'the leader chain must not carry national IDs',
+      );
+    }
+  });
+});
+
+describe('Spreadsheet exports', () => {
+  async function fetchExport(dataset, token) {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`${BASE}/api/dashboard/exports/${dataset}`, { headers });
+
+    // Read the body as bytes: decoding to text strips the leading BOM, which is
+    // exactly the byte this suite needs to assert on.
+    const bytes = res.status === 200 ? Buffer.from(await res.arrayBuffer()) : Buffer.alloc(0);
+
+    return {
+      status: res.status,
+      headers: res.headers,
+      bytes,
+      text: bytes.toString('utf8').replace(/^﻿/, ''),
+    };
+  }
+
+  test('a case export downloads as a UTF-8 spreadsheet file', async () => {
+    const { status, headers, bytes, text } = await fetchExport('cases', tokens.admin);
+
+    assert.equal(status, 200);
+    assert.match(headers.get('content-type') ?? '', /text\/csv/);
+    assert.match(
+      headers.get('content-disposition') ?? '',
+      /attachment; filename="saccfp-cases-\d{4}-\d{2}-\d{2}\.csv"/,
+    );
+    // The BOM is what makes Excel read the file as UTF-8 rather than as the
+    // local codepage, which is what keeps Kinyarwanda text intact.
+    assert.deepEqual(
+      [...bytes.subarray(0, 3)],
+      [0xef, 0xbb, 0xbf],
+      'the file must start with a UTF-8 BOM so Excel decodes it correctly',
+    );
+    assert.match(text, /^Case ID,Status,/, 'the file must start with the header row');
+    assert.ok(text.split('\r\n').length > 2, 'the export must contain data rows');
+  });
+
+  test('exports are scoped to the role that asked for them', async () => {
+    assert.equal((await fetchExport('cases', undefined)).status, 401);
+    assert.equal((await fetchExport('citizens', tokens.citizen)).status, 403);
+    assert.equal((await fetchExport('citizens', tokens.officer1)).status, 403);
+    assert.equal((await fetchExport('citizens', tokens.admin)).status, 200);
+    assert.equal((await fetchExport('institutions', tokens.citizen)).status, 403);
+  });
+
+  test('a citizen export contains only cases belonging to that citizen', async () => {
+    const { text } = await fetchExport('cases', tokens.citizen);
+    const { data } = await api('/dashboard/citizen', { token: tokens.citizen });
+
+    const exportedIds = text
+      .split('\r\n')
+      .slice(1)
+      .filter(Boolean)
+      .map((line) => line.split(',')[0]);
+    const ownIds = new Set((data.cases ?? []).map((entry) => entry.id));
+
+    assert.ok(exportedIds.length > 0, 'the citizen must be able to export something');
+    for (const id of exportedIds) {
+      assert.ok(ownIds.has(id), `export leaked case ${id} that does not belong to this citizen`);
+    }
+  });
+
+  test('an anonymous reporter stays anonymous inside the exported file', async () => {
+    await seedCitizenCase(tokens.citizen, {
+      reportingMode: 'anonymous',
+      message: 'Export anonymity regression: payment was demanded before any service was given.',
+    });
+
+    const { text } = await fetchExport('cases', tokens.admin);
+    const anonymousRows = text
+      .split('\r\n')
+      .slice(1)
+      .filter((line) => line.includes(',Anonymous,'));
+
+    assert.ok(anonymousRows.length > 0, 'the fixture must produce at least one anonymous row');
+    for (const row of anonymousRows) {
+      assert.ok(
+        !row.includes('1199111199997777'),
+        'an anonymous reporter national ID must never reach the spreadsheet',
+      );
+    }
+  });
+
+  test('spreadsheet cells cannot smuggle a formula into Excel', async () => {
+    const { text } = await fetchExport('cases', tokens.admin);
+
+    for (const line of text.split('\r\n').slice(1).filter(Boolean)) {
+      for (const cell of line.split(',')) {
+        const value = cell.replace(/^"|"$/g, '');
+        assert.ok(
+          !/^[=+@]/.test(value),
+          `cell ${cell} would be evaluated as a formula when the file is opened`,
+        );
+      }
+    }
+  });
+});
+
+describe('Notifications', () => {
+  test('each account reads only its own notifications', async () => {
+    for (const role of ['citizen', 'officer1', 'admin']) {
+      const { status, data } = await api('/dashboard/notifications', { token: tokens[role] });
+
+      assert.equal(status, 200);
+      assert.ok(Array.isArray(data.items), 'the inbox must always be a list');
+      assert.equal(typeof data.unreadCount, 'number');
+    }
+
+    const anonymous = await api('/dashboard/notifications');
+    assert.equal(anonymous.status, 401);
+  });
+
+  test('the citizen is notified in-app when RIB responds', async () => {
+    const caseId = await seedCitizenCase(tokens.citizen, {
+      reportingMode: 'verified',
+      message: 'Notification regression: nobody has explained why my file is still not processed.',
+    });
+
+    // Moving a case into investigation is an oversight action any reviewer may
+    // take, which makes it the stable trigger to assert on — answering a case
+    // is restricted to the desk it was routed to.
+    const reviewed = await api(`/dashboard/officer/complaints/${caseId}/start-review`, {
+      method: 'POST',
+      token: tokens.admin,
+      body: { note: 'Opened for investigation after an oversight check.' },
+    });
+    assert.equal(reviewed.status, 200, JSON.stringify(reviewed.data));
+
+    const { data } = await api('/dashboard/notifications', { token: tokens.citizen });
+    assert.ok(
+      data.items.some((entry) => entry.complaintId === caseId),
+      'the reporter must be told in-app that a response arrived',
+    );
+  });
+
+  test('marking as read clears the unread badge', async () => {
+    await api('/dashboard/notifications/read', { method: 'POST', token: tokens.citizen });
+    const { data } = await api('/dashboard/notifications', { token: tokens.citizen });
+
+    assert.equal(data.unreadCount, 0);
   });
 });

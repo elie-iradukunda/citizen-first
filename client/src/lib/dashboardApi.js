@@ -42,6 +42,14 @@ export function fetchDashboardOverview() {
   return request('/api/dashboard/overview');
 }
 
+export function fetchNotifications() {
+  return request('/api/dashboard/notifications');
+}
+
+export function markNotificationsRead() {
+  return postJson('/api/dashboard/notifications/read');
+}
+
 export function fetchCitizenDashboard() {
   return request('/api/dashboard/citizen');
 }
@@ -105,4 +113,34 @@ export function startComplaintReview(complaintId, payload = {}) {
 
 export function sendComplaintMessage(complaintId, body) {
   return postJson(`/api/dashboard/complaints/${complaintId}/messages`, { body });
+}
+
+// Spreadsheet export. The file is fetched with the auth header rather than
+// opened via a plain link, because a link cannot carry the bearer token — the
+// server would reject it, or worse, serve it to anyone who copied the URL.
+export async function downloadDashboardExport(dataset) {
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/exports/${dataset}`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message ?? `Export failed with status ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const suggestedName = disposition.match(/filename="?([^"]+)"?/)?.[1];
+  const filename = suggestedName ?? `saccfp-${dataset}.csv`;
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+
+  return filename;
 }

@@ -75,7 +75,12 @@ test('a phone can scan the institution QR, view everything, and report', async (
   await scan.locator('button[type=submit]').click();
   await scan.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 20_000 });
 
-  await scan.goto('/dashboard/citizen/submit');
+  // Carry the scanned office through to the form — that is the whole point of
+  // scanning, and it is what loads that office's real staff to accuse. Landing
+  // on the bare submit page would instead show the "how do you want to report?"
+  // choice screen.
+  const scannedSlug = target.pathname.split('/').pop();
+  await scan.goto(`/dashboard/citizen/submit?institution=${scannedSlug}&source=qr`);
   await scan.waitForLoadState('networkidle');
   // corruption is the default and primary flow: report against an accused official
   await scan.locator('select[name="issueType"]').selectOption('corruption_issue');

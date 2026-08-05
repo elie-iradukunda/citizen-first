@@ -153,7 +153,18 @@ function TrackPage() {
                   {caseRecord.category} | {formatLabel(caseRecord.reportingMode)} | submitted{' '}
                   {formatDate(caseRecord.submittedAt)}
                 </p>
-                <p className="mt-3 leading-7 text-slate">{caseRecord.message}</p>
+                <p className="mt-3 leading-7 text-slate">
+                  {caseRecord.hasOfficialResponse
+                    ? 'RIB has recorded an official response on this case. Sign in to your citizen dashboard to read it and to accept or escalate the outcome.'
+                    : 'This case is still moving through review. Sign in to your citizen dashboard to read the full report and any official response.'}
+                </p>
+                {/* Anyone can reach this page with a guessed case ID, so the
+                    report text, evidence, and reporter stay behind the
+                    citizen's own login. */}
+                <p className="mt-3 text-xs font-semibold text-slate">
+                  Public tracking shows progress only. Report details are private to the reporter and
+                  the reviewing officers.
+                </p>
               </div>
             ) : null}
 
