@@ -25,6 +25,71 @@ async function resolveGmailSmtpHost() {
   }
 }
 
+// Splits a `Name <address@host>` header into the parts Brevo's JSON API wants.
+function parseFromAddress(value) {
+  const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(value);
+  if (match) {
+    return { name: match[1] || mailConfig.appName, email: match[2].trim() };
+  }
+  return { name: mailConfig.appName, email: String(value).trim() };
+}
+
+// --- Brevo (HTTP API over port 443) ------------------------------------------
+// Railway blocks every outbound SMTP port including 2525, so Brevo's relay is
+// unreachable from the hosted service and only its HTTP API can deliver. Unlike
+// Resend's sandbox, a verified sender may email any recipient.
+function initBrevo() {
+  activeProvider = 'brevo';
+
+  const sender = parseFromAddress(mailConfig.from);
+
+  transport = async ({ to, subject, html, attachments }) => {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': mailConfig.brevoApiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender,
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        ...(mailConfig.replyTo ? { replyTo: { email: mailConfig.replyTo } } : {}),
+        // Brevo's API has no content-id field, so a `cid` attachment cannot be
+        // embedded inline here — it rides along as a normal attachment instead.
+        ...(attachments?.length
+          ? {
+              attachment: attachments.map(({ filename, contentBase64 }) => ({
+                name: filename,
+                content: contentBase64,
+              })),
+            }
+          : {}),
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = payload?.message || payload?.code || `HTTP ${response.status}`;
+      throw new Error(`Brevo API rejected the message: ${detail}`);
+    }
+    return { id: payload?.messageId ?? 'brevo' };
+  };
+
+  verifyTransport = async () => {
+    const response = await fetch('https://api.brevo.com/v3/account', {
+      headers: { 'api-key': mailConfig.brevoApiKey, Accept: 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`Brevo API key check failed: HTTP ${response.status}`);
+    }
+  };
+
+  console.info(`Email provider: Brevo HTTP API as ${sender.email}`);
+}
+
 // --- Resend (HTTP API over port 443) -----------------------------------------
 // Works on hosts that block outbound SMTP, such as Railway Trial/Hobby plans.
 function initResend() {
@@ -176,7 +241,9 @@ async function initGmail() {
   console.info(`Email provider: Gmail SMTP as ${mailConfig.gmailUser} (${smtpHost}:${smtpPort})`);
 }
 
-if (mailConfig.provider === 'resend' && mailConfig.isLive) {
+if (mailConfig.provider === 'brevo' && mailConfig.isLive) {
+  initBrevo();
+} else if (mailConfig.provider === 'resend' && mailConfig.isLive) {
   initResend();
 } else if (mailConfig.provider === 'smtp' && mailConfig.isLive) {
   initSmtp();
@@ -185,8 +252,9 @@ if (mailConfig.provider === 'resend' && mailConfig.isLive) {
 } else {
   console.warn(
     'No live email provider is configured. Set MAIL_PROVIDER + credentials ' +
-      '(RESEND_API_KEY for Resend, SMTP_HOST + SMTP_USER + SMTP_PASSWORD for a generic ' +
-      'SMTP relay, or GMAIL_USER + GMAIL_APP_PASSWORD for Gmail) to send real SACCFP email.',
+      '(BREVO_API_KEY for Brevo, RESEND_API_KEY for Resend, SMTP_HOST + SMTP_USER + ' +
+      'SMTP_PASSWORD for a generic SMTP relay, or GMAIL_USER + GMAIL_APP_PASSWORD for ' +
+      'Gmail) to send real SACCFP email.',
   );
 }
 
